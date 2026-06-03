@@ -1,0 +1,122 @@
+# Docker Compose 基础设施配置
+# 用途：一键启动 PostgreSQL + Redis + Consul + 应用服务
+# 使用：docker-compose up -d
+
+version: '3.8'
+
+services:
+  # ========== PostgreSQL 数据库 ==========
+  postgres:
+    image: postgres:14-alpine
+    container_name: tracking-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: 123456
+      POSTGRES_DB: ns_admin_webhook_development
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: always
+    networks:
+      - tracking-network
+
+  # ========== Redis 缓存 ==========
+  redis:
+    image: redis:6-alpine
+    container_name: tracking-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: always
+    networks:
+      - tracking-network
+
+  # ========== Consul 服务发现（可选，以后启用）==========
+  # consul:
+  #   image: consul:1.14
+  #   container_name: tracking-consul
+  #   ports:
+  #     - "8500:8500"  # HTTP API + Web UI
+  #     - "8600:8600"  # DNS
+  #   volumes:
+  #     - consul_data:/consul/data
+  #   command: agent -server -ui -bootstrap-expect=1 -client=0.0.0.0
+  #   healthcheck:
+  #     test: ["CMD", "consul", "members"]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 5
+  #   restart: always
+  #   networks:
+  #     - tracking-network
+
+  # ========== tracking-srv gRPC 服务 ==========
+  tracking-srv:
+    build:
+      context: ./tracking-srv
+      dockerfile: Dockerfile
+    container_name: tracking-srv
+    ports:
+      - "50051:50051"
+    environment:
+      - DB_URL=postgres://postgres:123456@postgres:5432/ns_admin_webhook_development
+      - REDIS_HOST=redis:6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./tracking-srv/logs:/app/logs
+    restart: always
+    networks:
+      - tracking-network
+
+  # ========== tracking-api HTTP 服务 ==========
+  tracking-api:
+    build:
+      context: ./tracking-api
+      dockerfile: Dockerfile
+    container_name: tracking-api
+    ports:
+      - "8081:8081"
+    environment:
+      - DB_URL=postgres://postgres:123456@postgres:5432/ns_admin_webhook_development
+      - REDIS_HOST=redis:6379
+      - YUN_EXPRESS_TOKEN=${YUN_EXPRESS_TOKEN}
+      - GE_YUN_EXPRESS_TOKEN=${GE_YUN_EXPRESS_TOKEN}
+      - YUN_EXPRESS_WEBHOOK_SECRET=${YUN_EXPRESS_WEBHOOK_SECRET}
+      - GE_YUN_EXPRESS_WEBHOOK_SECRET=${GE_YUN_EXPRESS_WEBHOOK_SECRET}
+    depends_on:
+      - tracking-srv
+      - postgres
+      - redis
+    volumes:
+      - ./tracking-api/logs:/app/logs
+    restart: always
+    networks:
+      - tracking-network
+
+# ========== 数据卷 ==========
+volumes:
+  postgres_data:
+  redis_data:
+  # consul_data:  # 启用 Consul 时取消注释
+
+# ========== 网络 ==========
+networks:
+  tracking-network:
+    driver: bridge

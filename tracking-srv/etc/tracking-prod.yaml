@@ -1,0 +1,68 @@
+# Go-Zero RPC 服务配置（生产环境）
+Name: tracking.rpc
+ListenOn: 0.0.0.0:50051
+
+# ===================== 数据库配置 =====================
+# 生产环境：使用环境变量，禁止硬编码密码
+DataSource: "${DATABASE_URL}"  # postgres://user:password@host:port/database
+
+# 数据库连接池配置（生产必备）
+Database:
+  MaxOpenConns: 100        # 最大连接数
+  MaxIdleConns: 20         # 最大空闲连接
+  ConnMaxLifetime: 300s    # 连接最大生命周期
+  ConnMaxIdleTime: 60s     # 空闲连接超时
+
+# ===================== Redis 配置 =====================
+# 生产环境：必须设置密码
+Redis:
+  Host: "${REDIS_HOST}"    # 环境变量
+  Type: node
+  Pass: "${REDIS_PASSWORD}"  # 生产环境必须设置密码
+  Db: 0
+  MaxIdle: 100              # 空闲连接数
+  MaxActive: 200            # 最大活跃连接
+  IdleTimeout: 300s         # 空闲超时
+  ConnTimeout: 500ms        # 连接超时
+  ReadTimeout: 3s           # 读超时
+  WriteTimeout: 3s          # 写超时
+
+# ===================== 服务发现配置 =====================
+# 生产环境推荐 Consul 或 Nacos
+Consul:
+  Host: "${CONSUL_HOST}"    # 127.0.0.1:8500
+  Scheme: http
+  Key: tracking.rpc
+  HealthCheckInterval: 10s
+  HealthCheckTimeout: 5s
+
+# ===================== 业务配置 =====================
+YunExpressToken: "${YUN_EXPRESS_TOKEN}"
+GEYunExpressToken: "${GE_YUN_EXPRESS_TOKEN}"
+
+# ===================== 监控配置 =====================
+# Prometheus metrics 暴露端口
+Prometheus:
+  Host: 0.0.0.0
+  Port: 9091
+  Path: /metrics
+
+# ===================== 日志配置 =====================
+Log:
+  ServiceName: tracking-srv
+  Mode: console              # 生产环境用 file
+  Encoding: json
+  Level: info                # 生产环境 info
+  Path: logs/tracking-srv.log
+  KeepDays: 7
+  Compress: true
+
+# ===================== 限流熔断配置 =====================
+Throttle:
+  Concurrency: 1000         # 最大并发
+  Timeout: 5s               # 请求超时
+
+CircuitBreaker:
+  Enabled: true
+  Threshold: 0.5            # 错误率阈值
+  Timeout: 30s              # 熔断超时

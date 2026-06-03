@@ -1,0 +1,31 @@
+# Go-Zero RPC 服务配置（开发环境）
+Name: tracking.rpc
+ListenOn: 127.0.0.1:50051
+
+# ===================== 数据库配置 =====================
+DataSource: postgres://postgres:123456@127.0.0.1:5432/ns_admin_webhook_development?sslmode=disable
+
+# ===================== Redis 配置 =====================
+RedisConf:
+  Host: localhost:6379
+  Pass: ""
+  Db: 0
+
+# ===================== Asynq 队列配置（Db=1，与缓存隔离）=====================
+AsynqRedisConf:
+  Addr: localhost:6379
+  Password: ""
+  DB: 1                # Redis DB=1，与缓存隔离
+  Concurrency: 10      # Worker 并发数
+
+# ===================== 服务发现（Consul）=====================
+# 生产环境：注册到 Consul，带 UI 界面
+# Consul:
+#   Host: 127.0.0.1:8500
+#   Key: tracking.rpc
+#   Meta:
+#     service: tracking-srv
+#     version: 1.0.0
+
+# 开发环境：直接监听（不注册 Consul）
+# 如需启用 Consul，取消上面注释即可
