@@ -61,4 +61,4 @@ temp/
 # Compiled output
 tracking-api/tracking-api
 tracking-srv/tracking-srv
-tracking-srv/worker
+tracking-srv/workerpush_to_github.ps1
