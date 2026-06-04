@@ -108,22 +108,89 @@ PostgreSQL：tracking_details 表入库 (字段：运单号、detail (jsonb 原�
 
 ### 2.1 项目根目录结构
 
+**架构说明**：项目采用 **Go Workspaces** 模式，contracts 独立管理，服务统一放置在 `service/tracking/` 下。
+
 ```
-demo1-gozero/
+ns-tracking-go/
+├── go.work                    # Go Workspaces 配置（多模块管理）
+├── Makefile                   # 构建脚本（build/clean/deps）
 ├── tracking.api               # HTTP API 定义文件（goctl 生成标准）
 ├── database.sql               # PostgreSQL 建表 SQL + 测试数据
 ├── docker-compose.yml         # Docker Compose 配置（PostgreSQL + Redis + Consul）
 ├── README.md                  # 项目文档
 │
-├── common/                    # 公共模块（跨服务共享）
-├── pkg/                       # 第三方接口封装（规划中）
-├── tracking-api/              # HTTP API 服务（go-zero rest 框架）
-└── tracking-srv/              # gRPC 服务（go-zero rpc 框架）
+├── contracts/                 # Contracts 独立管理（API/Proto 定义）
+│   ├── api/
+│   │   └── tracking.api      # HTTP API 契约定义
+│   └── proto/
+│       └── tracking.proto    # gRPC Proto 契约定义
+│
+├── service/                   # 服务目录（Go Workspaces）
+│   └── tracking/
+│       ├── api/              # HTTP API 服务（go-zero rest 框架）
+│       │   ├── bootstrap/
+│       │   ├── etc/
+│       │   ├── internal/
+│       │   └── go.mod
+│       │
+│       └── rpc/              # gRPC 服务（go-zero rpc 框架）
+│           ├── bootstrap/
+│           ├── cmd/worker/   # Worker 入口（异步任务）
+│           ├── etc/
+│           ├── internal/
+│           ├── tracking/     # Proto 生成代码
+│           ├── tracking.go   # RPC 服务入口
+│           ├── tracking.proto
+│           └── go.mod
+│
+├── common/                    # 公共模块（跨服务共享，未引用）
+├── docs/                      # 文档目录
+│
+└── tracking-api.exe           # 编译产物（HTTP API）
+└── tracking-srv.exe           # 编译产物（gRPC）
+```
+
+**Go Workspaces 说明**：
+
+| 特性 | 说明 |
+|------|------|
+| **go.work** | 多模块管理，替代多个独立 go.mod |
+| **contracts** | 契约独立管理（API/Proto），方便多人协作 |
+| **service/tracking/** | 统一服务目录，清晰分层 |
+| **Worker 不独立** | Worker 保留在 `rpc/cmd/worker/`，和 RPC 共用 internal |
+
+---
+
+### 2.2 contracts 契约管理
+
+```
+contracts/
+├── api/
+│   └── tracking.api          # HTTP API 定义（类型、路由、handler）
+│
+└── proto/
+    └── tracking.proto        # gRPC Proto 定义（服务、消息）
+```
+
+**作用说明**：
+
+| 目录 | 用途 | 优势 |
+|------|------|------|
+| `contracts/api` | HTTP API 契约定义 | API/Srv 共用，避免重复定义 |
+| `contracts/proto` | gRPC Proto 定义 | 多渠道接入时统一契约 |
+| **独立管理** | 与实现分离 | 方便多人协作、版本控制 |
+
+**使用方式**：
+
+```powershell
+# contracts 定义 → 复制到服务目录使用
+contracts/api/tracking.api → tracking.api（根目录）
+contracts/proto/tracking.proto → service/tracking/rpc/tracking.proto
 ```
 
 ---
 
-### 2.2 common 公共模块
+### 2.3 common 公共模块
 
 ```
 common/
@@ -143,15 +210,17 @@ common/
 
 **作用说明**：
 
-| 目录 | 用途 | 使用场景 |
+| 目录 | 用途 | 当前状态 |
 |------|------|---------|
-| `consts` | 定义全局常量 | 状态码映射、渠道判断 |
-| `errors` | 统一错误码 | Handler 层返回标准错误 |
-| `utils` | 公共工具 | 签名验证、时间处理 |
+| `consts` | 定义全局常量 | 未被 API/Srv 引用 |
+| `errors` | 统一错误码 | 未被 API/Srv 引用 |
+| `utils` | 公共工具 | 未被 API/Srv 引用 |
+
+**备注**：common 目录保留，未来扩展时可能使用。
 
 ---
 
-### 2.3 pkg 第三方接口封装（规划中）
+### 2.4 pkg 第三方接口封装（规划中）
 
 ```
 pkg/
@@ -189,7 +258,7 @@ pkg/
 
 ---
 
-### 2.4 event 事件包（规划中 - 企业级标准结构）
+### 2.5 event 事件包（已实现 - 企业级标准结构）
 
 > Event 事件包标准结构（解耦、可扩展、可维护，go-zero 通用）
 > 用途：事件定义、事件分发、事件监听、异步处理（如：美国发货发邮件）
@@ -284,16 +353,18 @@ func RegisterListeners() {
 | `listener` | 事件监听器 | 真正执行业务逻辑（邮件、短信等） |
 | `register.go` | 统一注册 | 启动时绑定监听器到事件类型 |
 
-**当前状态**：**规划中**（当前 Webhook 模式已满足需求，未来扩展异步通知时使用）。
+**当前状态**：**已实现**（位于 `service/tracking/rpc/internal/event/`）。
 
 ---
 
-### 2.5 tracking-api HTTP API 服务
+### 2.6 tracking-api HTTP API 服务
+
+**路径**：`service/tracking/api/`
 
 ```
-tracking-api/
+service/tracking/api/
 ├── tracking-api.go            # 服务入口（main 函数）
-├── go.mod                     # Go 模块依赖
+├── go.mod                     # Go 模块依赖（module: ns-tracking-go/service/tracking/api）
 ├── go.sum                     # 依赖版本锁定
 │
 ├── bootstrap/                 # 启动引导（初始化流程）
@@ -306,6 +377,7 @@ tracking-api/
 │   │
 │   ├── config/                # 配置结构体定义
 │   │   └── config.go         # Config struct（映射 YAML 配置）
+│   │   └── gray_scale.go     # 灰度发布配置
 │   │
 │   ├── handler/               # HTTP 处理器（goctl 生成）
 │   │   ├── routes.go         # 路由注册（/webhook, /internal/tracking, /health）
@@ -336,10 +408,10 @@ tracking-api/
 │   ├── middleware/            # 中间件（HTTP 拦截器）
 │   │   ├── cors.go           # CORS 跨域处理
 │   │   ├── auth.go           # JWT 认证（预留）
-│   │   └── ratelimit.go      # 限流中间件
+│   │   └── middleware.go     # 限流 + 安全处理
 │   │
 │   ├── svc/                   # 依赖注入容器（ServiceContext）
-│   │   └── servicecontext.go  # gRPC Client + Redis + Config 初始化
+│   │   └── servicecontext.go  # gRPC Client + Redis + Config 初始化 + Close()
 │   │
 │   ├── types/                 # HTTP 请求/响应结构体
 │   │   └── types.go          # WebhookRequest, TrackingDetailDTO 等定义
@@ -364,22 +436,29 @@ tracking-api/
 
 ---
 
-### 2.6 tracking-srv gRPC 服务
+### 2.7 tracking-srv gRPC 服务
+
+**路径**：`service/tracking/rpc/`
 
 ```
-tracking-srv/
+service/tracking/rpc/
 ├── tracking.go                # 服务入口（main 函数）
 ├── tracking.proto             # gRPC Proto 定义（生成 Go 代码）
-├── go.mod                     # Go 模块依赖
+├── go.mod                     # Go 模块依赖（module: ns-tracking-go/service/tracking/rpc）
 ├── go.sum                     # 依赖版本锁定
 │
 ├── bootstrap/                 # 启动引导
 │   └── app.go                # viper 配置初始化 + zap 日志初始化
 │
+├── cmd/                       # 命令目录
+│   └── worker/                # Worker 入口（异步任务处理）
+│       ├── main.go           # Worker main 函数
+│       └── routes.go         # Worker 路由注册
+│
 ├── etc/                       # 配置文件目录
 │   └── tracking.yaml         # RPC 服务配置（端口、数据库、Redis）
 │
-├── tracking/                  # Proto 生成的 Go 代码（goctl 生成）
+├── tracking/                  # Proto 生成的 Go 代码（protoc 生成）
 │   ├── tracking.pb.go        # Proto 消息定义
 │   └── tracking_grpc.pb.go   # gRPC Client/Server 代码
 │
@@ -389,27 +468,52 @@ tracking-srv/
 │   │   └── config.go         # Config struct（数据库、Redis、Consul）
 │   │
 │   ├── svc/                   # 依赖注入容器
-│   │   └── servicecontext.go  # GORM DB + Redis + DAO 初始化
+│   │   └── servicecontext.go  # GORM DB + Redis + DAO 初始化 + Close()
 │   │
 │   ├── model/                 # 数据模型定义（GORM Model）
 │   │   └── models.go         # TrackingDetail, TrackingLog 等结构体
 │   │
 │   ├── dao/                   # 数据访问层（GORM 实现）
-│   │   └── tracking_dao.go   # Upsert、GetLatest、MarkError
+│   │   ├── tracking_dao.go   # Upsert、GetLatest、MarkError
+│   │   ├── tracking_log_dao.go # 轨迹日志 DAO
+│   │   └── overseas_package_dao.go # 海外包 DAO
 │   │
 │   ├── cache/                 # 缓存层（Redis）
 │   │   └── tracking_cache.go # 缓存管理（4 小时 TTL）
+│   │
+│   ├── event/                 # 事件系统（已实现）
+│   │   ├── define/           # 事件定义
+│   │   ├── dispatcher/       # 事件分发器
+│   │   ├── listener/         # 事件监听器（LogListener）
+│   │   └── register.go       # 监听器注册
 │   │
 │   ├── logic/                 # 业务逻辑层
 │   │   ├── upsert_logic.go   # Upsert 处理逻辑
 │   │   ├── get_tracking_logic.go  # 查询处理逻辑
 │   │   └── mark_error_logic.go    # 错误标记逻辑
 │   │
-│   └── server/                # gRPC 服务实现
-│       └── tracking_server.go # RegisterRpcServer 实现
+│   ├── server/                # gRPC 服务实现
+│   │   └── tracking_server.go # RegisterRpcServer 实现
+│   │
+│   ├── queue/                 # 异步任务队列（Asynq）
+│   │   ├── config/           # Asynq 配置
+│   │   ├── handler/          # 任务处理器
+│   │   └── tasks/            # 任务定义
+│   │
+│   └── utils/                 # 工具类
+│       └── mask.go           # 日志脱敏工具
 │
 └── Dockerfile                 # Docker 构建文件（生产部署）
 ```
+
+**Worker 说明**：
+
+| 特性 | 说明 |
+|------|------|
+| **位置** | `cmd/worker/main.go` + `routes.go` |
+| **架构** | 和 RPC 共用 internal，不独立 module |
+| **用途** | 异步任务处理（批量查询、失败重试） |
+| **启动** | 和 RPC 同进程，或独立进程启动 |
 
 **核心目录说明**：
 
@@ -488,7 +592,7 @@ docker exec -it tracking-postgres psql -U postgres -d ns_admin_webhook_developme
 
 ### 3.4 配置文件说明
 
-#### tracking-api 配置（`tracking-api/etc/tracking-api-api.yaml`）
+#### tracking-api 配置（`service/tracking/api/etc/tracking-api-api.yaml`）
 
 ```yaml
 Name: tracking-api
@@ -520,7 +624,7 @@ CORS:
     - POST
 ```
 
-#### tracking-srv 配置（`tracking-srv/etc/tracking.yaml`）
+#### tracking-srv 配置（`service/tracking/rpc/etc/tracking.yaml`）
 
 ```yaml
 Name: tracking.rpc
@@ -553,13 +657,21 @@ PostgreSQL/Redis（中间件） → tracking-srv（gRPC） → tracking-api（HT
 
 #### 启动 tracking-srv（gRPC 服务）
 
+**方式 1：使用编译产物**
+
 ```powershell
-cd D:\gohome\demo1-gozero\tracking-srv
+cd D:\gohome\demo1-gozero\ns-tracking-go
 
-# 安装依赖
-go mod tidy
+# 使用编译后的 exe
+.\tracking-srv.exe -f service\tracking\rpc\etc\tracking.yaml
+```
 
-# 启动服务
+**方式 2：使用 go run**
+
+```powershell
+cd D:\gohome\demo1-gozero\ns-tracking-go\service\tracking\rpc
+
+# 直接运行
 go run tracking.go -f etc/tracking.yaml
 ```
 
@@ -574,13 +686,21 @@ Starting rpc server at 127.0.0.1:50051...
 
 #### 启动 tracking-api（HTTP API）
 
+**方式 1：使用编译产物**
+
 ```powershell
-cd D:\gohome\demo1-gozero\tracking-api
+cd D:\gohome\demo1-gozero\ns-tracking-go
 
-# 安装依赖
-go mod tidy
+# 使用编译后的 exe
+.\tracking-api.exe -f service\tracking\api\etc\tracking-api-api.yaml
+```
 
-# 启动服务
+**方式 2：使用 go run**
+
+```powershell
+cd D:\gohome\demo1-gozero\ns-tracking-go\service\tracking\api
+
+# 直接运行
 go run tracking-api.go -f etc/tracking-api-api.yaml
 ```
 
@@ -816,9 +936,82 @@ curl http://localhost:8082/internal/tracking/YT2606500704802225
 
 ---
 
-## 五、补充说明
+## 五、Go Workspaces 使用指南
 
-### 5.1 开发环境 vs 生产环境
+### 5.1 Go Workspaces 概念
+
+**Go Workspaces** 是 Go 1.18+ 引入的多模块管理方案，替代传统的多个独立 go.mod。
+
+**优势**：
+
+| 特性 | 传统多 go.mod | Go Workspaces |
+|------|--------------|---------------|
+| 模块管理 | 每个服务独立 go.mod | 统一 go.work 管理 |
+| 依赖冲突 | 需手动协调 | 自动同步 |
+| 本地开发 | 需多个 replace | 自动识别本地模块 |
+| 编译效率 | 每次需 tidy | work sync 一次 |
+
+---
+
+### 5.2 go.work 配置
+
+```go
+go 1.25.0
+
+use (
+	./service/tracking/api
+	./service/tracking/rpc
+)
+```
+
+**说明**：
+- `use` 指令指定包含的模块
+- 自动处理模块间依赖（API → RPC）
+- 无需手动 replace 指令
+
+---
+
+### 5.3 Makefile 使用
+
+```powershell
+# 编译两个服务
+make build
+
+# 清理编译产物
+make clean
+
+# 更新依赖
+make deps
+
+# 或手动操作
+go build -o tracking-api.exe ./service/tracking/api
+go build -o tracking-srv.exe ./service/tracking/rpc
+go work sync
+```
+
+---
+
+### 5.4 模块依赖关系
+
+```
+service/tracking/api/go.mod
+├── module: ns-tracking-go/service/tracking/api
+├── require: ns-tracking-go/service/tracking/rpc v0.0.0-00010101000000-000000000000
+└── replace: ns-tracking-go/service/tracking/rpc => ../rpc
+
+service/tracking/rpc/go.mod
+└── module: ns-tracking-go/service/tracking/rpc
+```
+
+**依赖说明**：
+- API 依赖 RPC（通过 replace 指向本地 ../rpc）
+- go.work 自动管理，无需手动配置
+
+---
+
+## 六、补充说明
+
+### 6.1 开发环境 vs 生产环境
 
 | 配置项 | 开发环境 | 生产环境 |
 |--------|---------|---------|
@@ -830,7 +1023,7 @@ curl http://localhost:8082/internal/tracking/YT2606500704802225
 
 ---
 
-### 5.2 Asynq 异步队列设计（规划中）
+### 6.2 Asynq 异步队列设计（已实现）
 
 **用途**：处理耗时任务（批量查询、数据同步、失败重试）。
 
@@ -846,7 +1039,7 @@ Webhook 接收 → Redis Stream → Asynq Worker → 批量入库
 
 ---
 
-### 5.3 云途 Webhook 配置指南
+### 6.3 云途 Webhook 配置指南
 
 #### 步骤 1：映射公网地址（cpolar）
 
@@ -883,7 +1076,7 @@ Webhook 接收 → Redis Stream → Asynq Worker → 批量入库
 ```
 
 
-十、已知风险与待解决事项
+## 七、已知风险与待解决事项
 
 #	风险/问题	          影响	                                当前状态	           建议方案
 1	跨境网络方案未确定	 海外云途推送 → 国内服务器，网络延迟和不稳定性	未解决	海外部署 Nginx 反代 + 专线回源，或使用全球加速

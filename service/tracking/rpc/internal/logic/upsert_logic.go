@@ -3,12 +3,14 @@ package logic
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strconv"
 
 	"ns-tracking-go/service/tracking/rpc/internal/event/define"
 	"ns-tracking-go/service/tracking/rpc/internal/queue/tasks"
 	"ns-tracking-go/service/tracking/rpc/internal/svc"
-"ns-tracking-go/service/tracking/rpc/tracking"
+	"ns-tracking-go/service/tracking/rpc/internal/utils"
+	"ns-tracking-go/service/tracking/rpc/tracking"
 
 	"github.com/hibiken/asynq"
 	"github.com/zeromicro/go-zero/core/logx"
@@ -29,14 +31,34 @@ func NewUpsertLogic(ctx context.Context, svcCtx *svc.ServiceContext) *UpsertLogi
 	}
 }
 
-// Upsert 插入或更新追踪数据（完整四表同步版本）
+// Upsert 插入或更新追踪数据（完整四表同步版本 + 幂等去重）
 // 对标：Ruby tracking_detail.rb:272-293 (sync!方法)
 // 流程：
-//  1. Upsert tracking_details（备份last_detail）
-//  2. 查询tracking_log获取ID
-//  3. 同步回写tracking_log状态
-//  4. 写入tracking_cache_log（可选）
+//  1. 幂等去重检查（防止重复处理）
+//  2. Upsert tracking_details（备份last_detail）
+//  3. 查询tracking_log获取ID
+//  4. 同步回写tracking_log状态
+//  5. 写入tracking_cache_log（可选）
 func (l *UpsertLogic) Upsert(in *tracking.UpsertRequest) (*tracking.UpsertResponse, error) {
+	// ========== Step 0: 幂等去重检查（防止重复处理）==========
+	// 幂等 key: upsert:{tracking_number}:{synced_at}
+	idempotencyKey := fmt.Sprintf("upsert:%s:%d", in.TrackingNumber, in.SyncedAt)
+	
+	if l.svcCtx.Redis != nil {
+		// 检查是否已处理
+		exists, err := l.svcCtx.Redis.ExistsCtx(l.ctx, idempotencyKey)
+		if err == nil && exists {
+			l.Logger.Infof("Duplicate request detected, skipping: %s", utils.MaskTrackingNumber(in.TrackingNumber))
+			return &tracking.UpsertResponse{
+				Success: true,
+				Message: "duplicate request (already processed)",
+			}, nil
+		}
+		
+		// 设置幂等 key（1小时过期）
+		l.svcCtx.Redis.SetexCtx(l.ctx, idempotencyKey, "1", 3600)
+	}
+	
 	// ========== Step 1: Upsert tracking_details（备份last_detail）==========
 	// 对标：Ruby tracking_detail.rb:280-288
 	err := l.svcCtx.TrackingDAO.Upsert(l.ctx,
@@ -91,7 +113,7 @@ func (l *UpsertLogic) Upsert(in *tracking.UpsertRequest) (*tracking.UpsertRespon
 		}, nil
 	}
 
-	l.Logger.Infof("Upsert tracking_details success: %s, status=%d", in.TrackingNumber, in.Status)
+	l.Logger.Infof("Upsert tracking_details success: %s, status=%d", utils.MaskTrackingNumber(in.TrackingNumber), in.Status)
 
 	// ========== Step 2: 查询tracking_log获取ID和渠道信息 ==========
 	// 对标：Ruby tracking_detail.rb:268（关联tracking_log）
@@ -115,7 +137,7 @@ func (l *UpsertLogic) Upsert(in *tracking.UpsertRequest) (*tracking.UpsertRespon
 			l.Logger.Errorf("Sync tracking_log failed: %v", err)
 			// 同步失败不影响主流程，记录日志即可
 		} else {
-			l.Logger.Infof("Sync tracking_log success: %s → track_status=%d", in.TrackingNumber, trackStatus)
+			l.Logger.Infof("Sync tracking_log success: %s → track_status=%d", utils.MaskTrackingNumber(in.TrackingNumber), trackStatus)
 		}
 	}
 

@@ -114,3 +114,31 @@ func NewServiceContext(c config.Config) *ServiceContext {
 		AsynqClient:        asynqClient,
 	}
 }
+
+// Close 释放资源（优雅关闭）
+// 释放 DB/AsynqClient 连接，防止服务重启时泄漏
+// 注意：go-zero Redis 无 Close 方法，依赖进程退出自动清理
+func (ctx *ServiceContext) Close() {
+	// 1. 关闭数据库连接
+	if ctx.DB != nil {
+		if sqlDB, err := ctx.DB.DB(); err == nil {
+			if closeErr := sqlDB.Close(); closeErr != nil {
+				logx.Errorf("Failed to close database connection: %v", closeErr)
+			} else {
+				logx.Info("Database connection closed")
+			}
+		}
+	}
+
+	// 2. 关闭 Asynq Client
+	if ctx.AsynqClient != nil {
+		if closeErr := ctx.AsynqClient.Close(); closeErr != nil {
+			logx.Errorf("Failed to close Asynq client: %v", closeErr)
+		} else {
+			logx.Info("Asynq client closed")
+		}
+	}
+
+	// 3. Redis 连接无需手动关闭（go-zero Redis 无 Close 方法）
+	//    Redis 连接会在进程退出时自动清理
+}

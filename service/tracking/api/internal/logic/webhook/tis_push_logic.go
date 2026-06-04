@@ -78,10 +78,14 @@ func (l *TisPushLogic) TisPush(req *types.TisPushRequest) (*types.Response, erro
 
 	_, err = l.svcCtx.TrackingRpc.UpsertTracking(l.ctx, grpcReq)
 	if err != nil {
+		// 记录详细错误日志（内部调试）
+		l.Logger.Errorf("gRPC Upsert failed: %v", err)
+		
+		// 返回通用错误（防止内部信息泄露）
 		return &types.Response{
 			Code:    500,
-			Message: "Database error",
-			Data:    err.Error(),
+			Message: "Internal server error",
+			Data:    "", // ← 不返回内部错误详情
 		}, nil
 	}
 

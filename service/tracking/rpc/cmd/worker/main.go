@@ -1,6 +1,7 @@
 ﻿package main
 
 import (
+	"context"
 	"flag"
 	"os"
 	"os/signal"
@@ -16,6 +17,7 @@ import (
 	"github.com/hibiken/asynq"
 	"github.com/zeromicro/go-zero/core/conf"
 	"github.com/zeromicro/go-zero/core/logx"
+	"golang.org/x/sync/errgroup"
 )
 
 var configFile = flag.String("f", "etc/tracking.yaml", "the config file")
@@ -52,30 +54,40 @@ func main() {
 	// handler.RegisterLogHandler(mux, svcCtx)
 	// handler.RegisterKafkaHandler(mux, svcCtx)
 
-	// 6. 启动 Worker 进程
+	// 6. 启动 Worker 进程（用 errgroup + context 控制生命周期）
 	logx.Info("Asynq Worker starting...")
+	
+	g, ctx := errgroup.WithContext(context.Background())
+	
+	// 启动 Asynq Server
+	g.Go(func() error {
+		logx.Info("Asynq Worker started successfully")
+		return asynqServer.Run(mux)
+	})
+	
+	// 监听 context 取消信号（优雅关闭）
+	g.Go(func() error {
+		<-ctx.Done()
+		logx.Info("Context cancelled, shutting down Asynq Worker...")
+		asynqServer.Shutdown()
+		return nil
+	})
+	
+	// 等待中断信号或错误
 	go func() {
-		if err := asynqServer.Run(mux); err != nil {
-			logx.Errorf("Asynq Worker failed: %v", err)
-			os.Exit(1)
-		}
+		sigChan := make(chan os.Signal, 1)
+		signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+		sig := <-sigChan
+		logx.Infof("Received signal: %v, cancelling context...", sig)
+		
+		// 通过 context 取消来触发优雅关闭
+		ctx.Done() // 触发 errgroup 取消
 	}()
-
-	logx.Info("Asynq Worker started successfully")
-
-	// 7. 等待中断信号（优雅关闭）
-	waitForShutdown(asynqServer)
-}
-
-// waitForShutdown 等待中断信号（优雅关闭）
-func waitForShutdown(server *asynq.Server) {
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
-
-	sig := <-sigChan
-	logx.Infof("Received signal: %v, shutting down...", sig)
-
-	// 关闭 Asynq Server
-	server.Shutdown()
+	
+	// 等待所有 goroutine 完成
+	if err := g.Wait(); err != nil {
+		logx.Errorf("Asynq Worker exited with error: %v", err)
+		os.Exit(1)
+	}
 	logx.Info("Asynq Worker shutdown completed")
 }

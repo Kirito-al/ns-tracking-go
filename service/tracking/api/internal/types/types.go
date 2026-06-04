@@ -40,32 +40,32 @@ type TisPushRequest struct {
 
 // TisPushData TIS Push 数据主体
 type TisPushData struct {
-	TrackingNumber                string   `json:"tracking_number"`                           // 轨迹单号（必填）
-	WaybillNumber                 string   `json:"waybill_number"`                            // 运单号（必填）
-	PackageStatus                 string   `json:"package_status"`                            // 包裹状态 (T=运输中，必填)
-	SignatureUrls                 []string `json:"SignatureUrls,optional"`                    // 签名 URL 数组（可选）
-	IsSignature                   bool     `json:"IsSignature,optional"`                      // 是否已签名（可选）
-	IntervalWorkDay               *float64 `json:"interval_work_day,optional"`                // 工作日天数（可选）
-	ProductCode                   *string  `json:"product_code,optional"`                     // 产品代码（可选）
-	CustomerOrderNumber           *string  `json:"customer_order_number,optional"`            // 客户订单号（可选）
-	ProductName                   *string  `json:"product_name,optional"`                     // 产品名称（可选）
-	DestinationCode               *string  `json:"destination_code,optional"`                 // 目的地代码（可选）
-	IntervalDay                   *float64 `json:"interval_day,optional"`                     // 总天数（可选）
-	OriginCode                    *string  `json:"origin_code,optional"`                      // 始发地代码（可选）
-	PodUrls                       []string `json:"pod_urls,optional"`                         // POD URL 数组（可选）
-	CustomerCode                  *string  `json:"customer_code,optional"`                    // 客户代码（可选）
-	ChannelCode                   *string  `json:"channel_code,optional"`                     // 渠道代码（可选）
-	CheckInTime                   *string  `json:"check_in_time,optional"`                    // 入库时间（可选）
-	CheckOutTime                  *string  `json:"check_out_time,optional"`                   // 出库时间（可选）
-	PickUpTime                    *string  `json:"pick_up_time,optional"`                     // 揽收时间（可选）
-	LastMileSite                  *string  `json:"last_mile_site,optional"`                   // 尾程查询网址（可选）
-	EstimatedDeliveryToDateZone   *string  `json:"EstimatedDeliveryToDateZone,optional"`      // 预计送达时间（结束，可选）
-	EstimatedDeliveryFromDateZone *string  `json:"EstimatedDeliveryFromDateZone,optional"`    // 预计送达时间（开始，可选）
-	PostalCode                    *string  `json:"postal_code,optional"`                      // 邮编（可选）
-	ActualWeight                  *float64 `json:"actual_weight,optional"`                    // 实际重量（可选）
-	LastMileName                  *string  `json:"last_mile_name,optional"`                   // 尾程承运商名称（可选）
-	PhoneNumber                   *string  `json:"phone_number,optional"`                     // 联系电话（可选）
-	TrackEvents                   []TisTrackEvent     `json:"track_events"`                   // 轨迹事件列表（必填）
+	TrackingNumber string   `json:"tracking_number" validate:"required"`                           // 轨迹单号（必填）
+	WaybillNumber  string   `json:"waybill_number" validate:"required"`                            // 运单号（必填）
+	PackageStatus  string   `json:"package_status" validate:"required"`                            // 包裹状态（必填）
+	SignatureUrls  []string `json:"SignatureUrls,optional"`                                       // 签名 URL 数组（可选）
+	IsSignature    bool     `json:"IsSignature,optional"`                                         // 是否已签名（可选）
+	IntervalWorkDay *float64 `json:"interval_work_day,optional"`                                   // 工作日天数（可选）
+	ProductCode    *string  `json:"product_code,optional"`                                        // 产品代码（可选）
+	CustomerOrderNumber *string `json:"customer_order_number,optional"`                           // 客户订单号（可选）
+	ProductName    *string  `json:"product_name,optional"`                                        // 产品名称（可选）
+	DestinationCode *string `json:"destination_code,optional"`                                    // 目的地代码（可选）
+	IntervalDay    *float64 `json:"interval_day,optional"`                                        // 总天数（可选）
+	OriginCode     *string  `json:"origin_code,optional"`                                         // 始发地代码（可选）
+	PodUrls        []string `json:"pod_urls,optional"`                                            // POD URL 数组（可选）
+	CustomerCode   *string  `json:"customer_code,optional"`                                       // 客户代码（可选）
+	ChannelCode    *string  `json:"channel_code,optional"`                                        // 渠道代码（可选）
+	CheckInTime    *string  `json:"check_in_time,optional"`                                       // 入库时间（可选）
+	CheckOutTime   *string  `json:"check_out_time,optional"`                                      // 出库时间（可选）
+	PickUpTime     *string  `json:"pick_up_time,optional"`                                        // 揽收时间（可选）
+	LastMileSite   *string  `json:"last_mile_site,optional"`                                      // 尾程查询网址（可选）
+	EstimatedDeliveryToDateZone *string `json:"EstimatedDeliveryToDateZone,optional"`      // 预计送达时间（结束，可选）
+	EstimatedDeliveryFromDateZone *string `json:"EstimatedDeliveryFromDateZone,optional"`  // 预计送达时间（开始，可选）
+	PostalCode     *string  `json:"postal_code,optional"`                                         // 邮编（可选）
+	ActualWeight   *float64 `json:"actual_weight,optional"`                                       // 实际重量（可选）
+	LastMileName   *string  `json:"last_mile_name,optional"`                                      // 尾程承运商名称（可选）
+	PhoneNumber    *string  `json:"phone_number,optional"`                                        // 联系电话（可选）
+	TrackEvents    []TisTrackEvent `json:"track_events" validate:"required,min=1"`              // 轨迹事件列表（必填，最少1条）
 }
 
 // TisTrackEvent TIS 轨迹事件

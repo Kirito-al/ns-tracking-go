@@ -28,6 +28,7 @@ func main() {
 
 	// 2. 创建服务上下文（依赖注入）
 	ctx := svc.NewServiceContext(c)
+	defer ctx.Close() // ← 释放资源（防止连接泄漏）
 
 	// 3. 创建并注册事件分发器
 	eventDispatcher := dispatcher.NewInMemoryDispatcher()

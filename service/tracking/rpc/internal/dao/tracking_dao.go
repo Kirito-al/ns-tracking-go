@@ -2,6 +2,7 @@ package dao
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"ns-tracking-go/service/tracking/rpc/internal/model"
@@ -76,6 +77,11 @@ func (d *TrackingDAO) UpsertWithTrackingLogId(ctx context.Context, trackingNumbe
 // SyncTrackingLog 同步回写 tracking_log 状态（5个字段同步）
 // 字段：track_status, synced_at, received_at, delivered_at, tracked_at
 func (d *TrackingDAO) SyncTrackingLog(ctx context.Context, trackingNumber string, trackStatus int32, syncedAt int64, receivedAt, deliveredAt, trackedAt string) error {
+	// 防止全表更新：检查 trackingNumber 是否为空
+	if trackingNumber == "" {
+		return fmt.Errorf("tracking_number cannot be empty")
+	}
+	
 	// 转换ISO8601字符串为Unix时间戳（如果不为空）
 	var receivedAtUnix, deliveredAtUnix, trackedAtUnix int64
 	if receivedAt != "" {
