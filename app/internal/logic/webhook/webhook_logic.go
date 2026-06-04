@@ -10,6 +10,7 @@ import (
 	"ns-tracking-go/app/internal/types"
 	"ns-tracking-go/domain/tracking/entity"
 	"ns-tracking-go/domain/tracking/service"
+	"ns-tracking-go/pkg/toolx"
 
 	"github.com/zeromicro/go-zero/core/logx"
 )
@@ -71,7 +72,7 @@ func (l *WebhookLogic) Webhook(req *types.WebhookRequest, accountType string) (r
 		ServiceClass:   "YunExpressService",
 	}
 
-	err = l.svcCtx.TrackingRepo.Save(detail)
+	err = l.svcCtx.TrackingRepo.Save(l.ctx, detail)
 	if err != nil {
 		l.Logger.Errorf("Upsert tracking_details failed: %v", err)
 		return &types.Response{
@@ -81,7 +82,7 @@ func (l *WebhookLogic) Webhook(req *types.WebhookRequest, accountType string) (r
 		}, nil
 	}
 
-	l.Logger.Infof("Webhook processed successfully: %s", req.WayBillNumber)
+	l.Logger.Infof("Webhook processed successfully: %s", toolx.MaskTrackingNumber(req.WayBillNumber))
 
 	return &types.Response{
 		Code:    200,

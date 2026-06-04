@@ -4,10 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"strconv"
-	// "time"
 
 	"ns-tracking-go/domain/tracking/service"
-	"ns-tracking-go/app/internal/normalize"
 	"ns-tracking-go/app/internal/svc"
 	"ns-tracking-go/app/internal/types"
 
@@ -50,10 +48,11 @@ func (l *TisPushLogic) TisPush(tisData *types.TisPushData) (*types.Response, err
 	// 4. 转换为 JSON
 	detailJSON, err := json.Marshal(formatted)
 	if err != nil {
+		l.Logger.Errorf("JSON marshal failed: %v", err)
 		return &types.Response{
 			Code:    500,
 			Message: "Format error",
-			Data:    err.Error(),
+			Data:    "", // ← 修复：不泄露内部错误信息
 		}, nil
 	}
 
@@ -64,10 +63,15 @@ func (l *TisPushLogic) TisPush(tisData *types.TisPushData) (*types.Response, err
 		statusCode = code
 	}
 
-	// 6. gRPC Upsert（传递3个时间戳）
-	detail := &entity.TrackingDetail{TrackingNumber: webhookReq.WayBillNumber, Detail: string(detailJSON), Status: int32(statusCode), ServiceClass: "YunExpressService"}
+	// 6. Upsert 入库（传递3个时间戳）
+	detail := &entity.TrackingDetail{
+		TrackingNumber: webhookReq.WayBillNumber,
+		Detail:         string(detailJSON),
+		Status:         int32(statusCode),
+		ServiceClass:   l.svcCtx.Config.ServiceClass, // 从配置读取（修复硬编码）
+	}
 
-	err = l.svcCtx.TrackingRepo.Save(detail)
+	err = l.svcCtx.TrackingRepo.Save(l.ctx, detail)
 	if err != nil {
 		// 记录详细错误日志（内部调试）
 		l.Logger.Errorf("gRPC Upsert failed: %v", err)
@@ -109,7 +113,7 @@ func (l *TisPushLogic) convertTisToWebhook(tisData *types.TisPushData) *types.We
 			ProcessDate:     evt.ProcessTime,                   // 用当地时间
 			ProcessLocation: processLocation,                   // 地点（处理指针）
 			ProcessContent:  evt.TrackNodeDescription,          // 描述作为内容
-			TrackingStatus:  normalize.MapNodeCode(evt.TrackNodeCode), // 使用完整映射表
+			TrackingStatus:  service.MapNodeCode(evt.TrackNodeCode), // 使用完整映射表
 		}
 	}
 
@@ -155,20 +159,20 @@ func (l *TisPushLogic) convertTisToWebhook(tisData *types.TisPushData) *types.We
 
 	// 5. 构建 WebhookRequest（OMS 格式）
 	return &types.WebhookRequest{
-		TrackingNumber:       tisData.TrackingNumber,   // 尾程单号
-		WayBillNumber:        tisData.WaybillNumber,    // 主单号
-		TrackingStatus:       latestStatus,             // 最新状态码
-		PackageState:         packageState,             // 包裹状态（数字）
-		OrderTrackingDetails: details,                  // 轨迹明细数组
-		ProviderName:         "云途物流",               // 服务商名称
-		ProviderSite:         lastMileSite,             // 尾程网站（处理指针）
-		ProvicerTelephone:    phoneNumber,              // 尾程电话（处理指针）
-		CountryCode:          destinationCode,          // 目的国（处理指针）
-		OriginCountryCode:    originCode,               // 始发国（处理指针）
-		TrackingNumber2:      tisData.TrackingNumber,   // 尾程单号（与 trackingNumber 相同）
-		LastMileCarrierName:  lastMileName,             // 尾程承运商（处理指针）
-		CreatedBy:            checkInTime,              // 入库时间（处理指针）
-		POD:                  l.extractPodUrl(tisData.TrackEvents), // POD URL
+		TrackingNumber:       tisData.TrackingNumber,                     // 尾程单号
+		WayBillNumber:        tisData.WaybillNumber,                      // 主单号
+		TrackingStatus:       latestStatus,                               // 最新状态码
+		PackageState:         packageState,                               // 包裹状态（数字）
+		OrderTrackingDetails: details,                                    // 轨迹明细数组
+		ProviderName:         l.svcCtx.Config.ProviderName,               // 服务商名称（从配置读取）
+		ProviderSite:         lastMileSite,                               // 尾程网站（处理指针）
+		ProvicerTelephone:    phoneNumber,                                // 尾程电话（处理指针）
+		CountryCode:          destinationCode,                            // 目的国（处理指针）
+		OriginCountryCode:    originCode,                                 // 始发国（处理指针）
+		TrackingNumber2:      tisData.TrackingNumber,                     // 尾程单号（与 trackingNumber 相同）
+		LastMileCarrierName:  lastMileName,                               // 尾程承运商（处理指针）
+		CreatedBy:            checkInTime,                                // 入库时间（处理指针）
+		POD:                  l.extractPodUrl(tisData.TrackEvents),       // POD URL
 	}
 }
 

@@ -4,9 +4,9 @@ import (
 	"net/http"
 
 	"ns-tracking-go/app/internal/logic/webhook"
-	"ns-tracking-go/app/internal/normalize"
 	"ns-tracking-go/app/internal/svc"
 	"ns-tracking-go/app/internal/types"
+	"ns-tracking-go/domain/tracking/service"
 
 	"github.com/zeromicro/go-zero/rest/httpx"
 )
@@ -112,7 +112,7 @@ func convertTisToWebhook(tisData *types.TisPushData) *types.WebhookRequest {
 // getEventStatus 根据节点代码推断状态码
 // 使用完整的39个节点映射表
 func getEventStatus(nodeCode string) string {
-	return normalize.MapNodeCode(nodeCode)
+	return service.MapNodeCode(nodeCode)
 }
 
 // mapPackageState 映射 TIS package_status → packageState

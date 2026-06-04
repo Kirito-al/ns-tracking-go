@@ -24,8 +24,7 @@ func NewTrackingRepoImpl(db *DB) *TrackingRepoImpl {
 // Save Upsert插入或更新追踪数据（幂等+并发控制）
 // 对标：demo1-gozero tracking_dao.go:28-53 (Upsert方法)
 // 关键：WHERE auto_delivered_at IS NULL 防止覆盖已签收记录
-func (r *TrackingRepoImpl) Save(detail *entity.TrackingDetail) error {
-	ctx := context.Background()
+func (r *TrackingRepoImpl) Save(ctx context.Context, detail *entity.TrackingDetail) error {
 	now := time.Now().Unix()
 
 	// 并发控制：只有未签收的记录才更新（防止覆盖Ruby auto_sign的数据）
@@ -53,8 +52,7 @@ func (r *TrackingRepoImpl) Save(detail *entity.TrackingDetail) error {
 }
 
 // SaveWithTrackingLogId Upsert插入或更新追踪数据（带 tracking_log_id 关联）
-func (r *TrackingRepoImpl) SaveWithTrackingLogId(detail *entity.TrackingDetail, trackingLogId int64) error {
-	ctx := context.Background()
+func (r *TrackingRepoImpl) SaveWithTrackingLogId(ctx context.Context, detail *entity.TrackingDetail, trackingLogId int64) error {
 	now := time.Now().Unix()
 
 	err := r.db.WithContext(ctx).Exec(`
@@ -75,8 +73,7 @@ func (r *TrackingRepoImpl) SaveWithTrackingLogId(detail *entity.TrackingDetail, 
 }
 
 // FindByTrackingNumber 根据运单号查询轨迹详情
-func (r *TrackingRepoImpl) FindByTrackingNumber(trackingNumber string) (*entity.TrackingDetail, error) {
-	ctx := context.Background()
+func (r *TrackingRepoImpl) FindByTrackingNumber(ctx context.Context, trackingNumber string) (*entity.TrackingDetail, error) {
 	var detail entity.TrackingDetail
 
 	err := r.db.WithContext(ctx).

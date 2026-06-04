@@ -20,8 +20,11 @@ func NewYunExpressFormatter(raw map[string]interface{}) *YunExpressFormatter {
 // 返回：格式化后的轨迹详情 DTO（包含 response 包装层 + synced_at）
 func (f *YunExpressFormatter) Format() *TrackingDetailDTO {
 	// 1. 提取基础信息
-	trackingNumber := extractStringField(f.raw, "TrackingNumber")
-	wayBillNumber := extractStringField(f.raw, "WayBillNumber")
+	// 关键：优先使用 WayBillNumber 作为 TrackingNumber（主单号优先）
+	trackingNumber := extractStringField(f.raw, "WayBillNumber")
+	if trackingNumber == "" {
+		trackingNumber = extractStringField(f.raw, "TrackingNumber")
+	}
 	latestStatus := extractStringField(f.raw, "TrackingStatus")
 	
 	// 2. 海关查验状态改写（80 → 20）
@@ -33,12 +36,12 @@ func (f *YunExpressFormatter) Format() *TrackingDetailDTO {
 	// 4. 构建 OrderTrackingDetails（简化版，后续补充完整逻辑）
 	orderTrackingDetails := f.extractOrderTrackingDetails()
 	
-	// 5. 构建 response 包装层 + synced_at（关键：Ruby缓存命中条件）
+	// 5. 构建 response 包装层 + synced_at（关键：Ruby 缓存命中条件）
 	return &TrackingDetailDTO{
 		Response: &TrackingResponseDTO{
 			Item: TrackingItemDTO{
-				TrackingNumber:       trackingNumber,
-				WayBillNumber:        wayBillNumber,
+				TrackingNumber:       trackingNumber,      // 使用 WayBillNumber
+				WayBillNumber:        extractStringField(f.raw, "WayBillNumber"),
 				TrackingStatus:       latestStatus,
 				PackageState:         packageState,
 				OrderTrackingDetails: orderTrackingDetails,

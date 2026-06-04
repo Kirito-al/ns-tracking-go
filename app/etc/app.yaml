@@ -16,6 +16,10 @@ YunExpressWebhookSecret: test-secret
 GEYunExpressWebhookSecret: test-ge-secret
 YunExpressSkipSignature: true  # 开发环境跳过验签
 
+# 业务配置
+ProviderName: "云途物流"
+ServiceClass: "YunExpressService"
+
 # CORS 配置
 CORS:
   AllowedOrigins:

@@ -26,7 +26,7 @@ func NewGetTrackingLogic(ctx context.Context, svcCtx *svc.ServiceContext) *GetTr
 
 func (l *GetTrackingLogic) GetTracking(req *types.GetTrackingRequest) (resp *types.Response, err error) {
 	// DDD架构：直接调用仓储层查询（不经过gRPC）
-	detail, err := l.svcCtx.TrackingRepo.FindByTrackingNumber(req.TrackingNumber)
+	detail, err := l.svcCtx.TrackingRepo.FindByTrackingNumber(l.ctx, req.TrackingNumber)
 	if err != nil {
 		l.Logger.Errorf("Query failed: %v", err)
 		return &types.Response{
