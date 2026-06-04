@@ -27,8 +27,13 @@ func NewServiceContext(c config.Config) *ServiceContext {
 		redisClient = redis.MustNewRedis(c.RedisConf)
 	}
 
-	// 2. 创建 gRPC Client（服务发现:Etcd/Consul/Nacos）
-	client := zrpc.MustNewClient(c.TrackingRpc)
+	// 2. 创建 gRPC Client（直连模式，不使用 etcd）
+	// 开发环境直接连接 127.0.0.1:50051
+	client := zrpc.MustNewClient(zrpc.RpcClientConf{
+		Endpoints: []string{c.TrackingRpc.Target},
+		Timeout:   c.TrackingRpc.Timeout,
+		NonBlock:  c.TrackingRpc.NonBlock,
+	})
 
 	return &ServiceContext{
 		Config:      c,

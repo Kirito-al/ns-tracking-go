@@ -2,29 +2,24 @@ package config
 
 import (
 	"github.com/zeromicro/go-zero/core/stores/redis"
-	"github.com/zeromicro/go-zero/zrpc"
+	"github.com/zeromicro/go-zero/rest"
 )
 
 // Config tracking-api HTTP 服务配置
 type Config struct {
-	Name      string
-	Host      string
-	Port      int
+	rest.RestConf // go-zero REST 服务标准配置（包含 Name, Host, Port）
 
-	// gRPC Client配置
+	// gRPC Client 配置（开发环境直连）
 	TrackingRpc struct {
-		Target string
-		Timeout int64
+		Target string `json:",optional"`
+		Timeout int64 `json:",optional"`
+		NonBlock bool `json:",optional"`
 	}
 
-	// Redis配置
-	RedisConf struct {
-		Host string
-		Pass string
-		Db   int
-	}
+	// Redis 配置
+	RedisConf redis.RedisConf
 
-	// Webhook安全配置
+	// Webhook 安全配置
 	YunExpressWebhookSecret      string
 	GEYunExpressWebhookSecret     string
 	YunExpressSkipSignature       bool
