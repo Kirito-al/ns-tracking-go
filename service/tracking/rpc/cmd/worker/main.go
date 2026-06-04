@@ -57,7 +57,11 @@ func main() {
 	// 6. 启动 Worker 进程（用 errgroup + context 控制生命周期）
 	logx.Info("Asynq Worker starting...")
 	
-	g, ctx := errgroup.WithContext(context.Background())
+	// 创建可取消的 context（关键：必须用 WithCancel 才能主动触发取消）
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel() // 确保 cancel 被调用（资源释放）
+	
+	g, ctx := errgroup.WithContext(ctx)
 	
 	// 启动 Asynq Server
 	g.Go(func() error {
@@ -73,15 +77,15 @@ func main() {
 		return nil
 	})
 	
-	// 等待中断信号或错误
+	// 等待中断信号，触发优雅关闭
 	go func() {
 		sigChan := make(chan os.Signal, 1)
 		signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 		sig := <-sigChan
 		logx.Infof("Received signal: %v, cancelling context...", sig)
 		
-		// 通过 context 取消来触发优雅关闭
-		ctx.Done() // 触发 errgroup 取消
+		// 关键：调用 cancel() 触发 errgroup 取消（而不是 ctx.Done()）
+		cancel() // 触发 errgroup 取消 → 优雅关闭 Asynq Worker
 	}()
 	
 	// 等待所有 goroutine 完成

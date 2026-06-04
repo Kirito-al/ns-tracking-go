@@ -107,9 +107,10 @@ func (l *UpsertLogic) Upsert(in *tracking.UpsertRequest) (*tracking.UpsertRespon
 			}
 		}
 
+		// 返回通用错误（防止内部信息泄露）
 		return &tracking.UpsertResponse{
 			Success: false,
-			Message: "数据库写入失败: " + err.Error(),
+			Message: "数据库写入失败", // 不拼接 err.Error()（安全合规）
 		}, nil
 	}
 
