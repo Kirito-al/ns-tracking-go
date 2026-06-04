@@ -23,9 +23,8 @@ func NewOverseasPackageRepoImpl(db *DB) *OverseasPackageRepoImpl {
 // HasOverseasPackage 检查运单是否为海外包裹
 // 对标：Ruby tracking_detail.rb:75 (overseas_package_tracking_log)
 // 用途：InfoReceived 状态判断 track_status（海外包裹 → in_transit, 否则 → to_receive）
-func (r *OverseasPackageRepoImpl) HasOverseasPackage(trackingNumber string) (bool, error) {
-	ctx := context.Background()
-
+// 修复：添加 ctx 参数，传入请求 context
+func (r *OverseasPackageRepoImpl) HasOverseasPackage(ctx context.Context, trackingNumber string) (bool, error) {
 	var count int64
 
 	// 真实查询实现（GORM）
@@ -43,9 +42,8 @@ func (r *OverseasPackageRepoImpl) HasOverseasPackage(trackingNumber string) (boo
 }
 
 // Save 保存缓存日志（可选功能）
-func (r *OverseasPackageRepoImpl) Save(cacheLog *entity.TrackingCacheLog) error {
-	ctx := context.Background()
-
+// 修复：添加 ctx 参数
+func (r *OverseasPackageRepoImpl) Save(ctx context.Context, cacheLog *entity.TrackingCacheLog) error {
 	// GORM Upsert 实现
 	err := r.db.WithContext(ctx).
 		Model(&entity.TrackingCacheLog{}).
@@ -68,9 +66,8 @@ func (r *OverseasPackageRepoImpl) Save(cacheLog *entity.TrackingCacheLog) error 
 }
 
 // FindByTrackingNumber 根据运单号查询缓存日志
-func (r *OverseasPackageRepoImpl) FindByTrackingNumber(trackingNumber string) (*entity.TrackingCacheLog, error) {
-	ctx := context.Background()
-
+// 修复：添加 ctx 参数
+func (r *OverseasPackageRepoImpl) FindByTrackingNumber(ctx context.Context, trackingNumber string) (*entity.TrackingCacheLog, error) {
 	var cacheLog entity.TrackingCacheLog
 
 	err := r.db.WithContext(ctx).

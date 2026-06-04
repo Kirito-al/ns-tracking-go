@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"strconv"
 
 	"ns-tracking-go/domain/tracking/repo"
@@ -42,7 +43,8 @@ func (s *TrackingLogService) MapTrackStatus(status int32, trackingNumber string)
 	switch statusTxt {
 	case "InfoReceived":
 		// 检查 overseas_package（修复 P0 问题）
-		hasOverseasPackage, err := s.overseasPackageRepo.HasOverseasPackage(trackingNumber)
+		// 修复：传入 ctx 参数
+		hasOverseasPackage, err := s.overseasPackageRepo.HasOverseasPackage(context.Background(), trackingNumber)
 		if err != nil {
 			// 错误时保守策略：默认待揽收
 			return 0
