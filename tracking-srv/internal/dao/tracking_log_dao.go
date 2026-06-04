@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"tracking-srv/internal/model"
+	"tracking-srv/internal/utils"
 
 	"gorm.io/gorm"
 	"github.com/zeromicro/go-zero/core/logx"
@@ -33,7 +34,7 @@ func (d *TrackingLogDAO) GetBySourceTrackingNumber(ctx context.Context, tracking
 	}
 
 	if err != nil {
-		logx.Errorf("GetBySourceTrackingNumber failed for %s: %v", trackingNumber, err)
+		logx.Errorf("GetBySourceTrackingNumber failed for %s: %v", utils.MaskTrackingNumber(trackingNumber), err)
 		return nil, err
 	}
 

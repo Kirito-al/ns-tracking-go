@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"tracking-srv/internal/model"
+	"tracking-srv/internal/utils"
 
 	"gorm.io/gorm"
 	"github.com/zeromicro/go-zero/core/logx"
@@ -31,7 +32,7 @@ func (d *OverseasPackageDAO) HasOverseasPackage(ctx context.Context, trackingNum
 		Count(&count).Error
 
 	if err != nil {
-		logx.Errorf("HasOverseasPackage failed for %s: %v", trackingNumber, err)
+		logx.Errorf("HasOverseasPackage failed for %s: %v", utils.MaskTrackingNumber(trackingNumber), err)
 		return false, err
 	}
 

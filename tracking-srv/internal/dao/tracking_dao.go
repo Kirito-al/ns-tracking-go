@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"tracking-srv/internal/model"
+	"tracking-srv/internal/utils"
 
 	"gorm.io/gorm"
 	"github.com/zeromicro/go-zero/core/logx"
@@ -42,11 +43,11 @@ func (d *TrackingDAO) Upsert(ctx context.Context, trackingNumber, detail string,
 	`, trackingNumber, detail, status, serviceClass, now, now).Error
 
 	if err != nil {
-		logx.Errorf("Upsert failed for %s: %v", trackingNumber, err)
+		logx.Errorf("Upsert failed for %s: %v", utils.MaskTrackingNumber(trackingNumber), err)
 		return err
 	}
 
-	logx.Infof("Upsert success: %s, status=%d", trackingNumber, status)
+	logx.Infof("Upsert success: %s, status=%d", utils.MaskTrackingNumber(trackingNumber), status)
 	return nil
 }
 
@@ -110,12 +111,12 @@ func (d *TrackingDAO) SyncTrackingLog(ctx context.Context, trackingNumber string
 
 	err := result.Error
 	if err != nil {
-		logx.Errorf("SyncTrackingLog failed for %s: %v", trackingNumber, err)
+		logx.Errorf("SyncTrackingLog failed for %s: %v", utils.MaskTrackingNumber(trackingNumber), err)
 		return err
 	}
 
 	logx.Infof("SyncTrackingLog success: %s, affected_rows=%d, received=%d, delivered=%d, tracked=%d",
-		trackingNumber, result.RowsAffected, receivedAtUnix, deliveredAtUnix, trackedAtUnix)
+		utils.MaskTrackingNumber(trackingNumber), result.RowsAffected, receivedAtUnix, deliveredAtUnix, trackedAtUnix)
 	return nil
 }
 
@@ -150,7 +151,7 @@ func (d *TrackingDAO) GetLatest(ctx context.Context, trackingNumber string) (*mo
 	}
 
 	if err != nil {
-		logx.Errorf("GetLatest failed for %s: %v", trackingNumber, err)
+		logx.Errorf("GetLatest failed for %s: %v", utils.MaskTrackingNumber(trackingNumber), err)
 		return nil, err
 	}
 

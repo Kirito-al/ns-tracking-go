@@ -6,6 +6,7 @@ import (
 
 	"github.com/zeromicro/go-zero/core/stores/redis"
 	"github.com/zeromicro/go-zero/zrpc"
+	"google.golang.org/grpc"
 )
 
 // ServiceContext 服务上下文（依赖注入容器）
@@ -17,6 +18,9 @@ type ServiceContext struct {
 
 	// gRPC Client（连接 tracking-srv）
 	TrackingRpc tracking.TrackingServiceClient
+
+	// 内部 gRPC 连接（用于关闭）
+	grpcConn *grpc.ClientConn
 }
 
 // NewServiceContext 创建服务上下文
@@ -39,5 +43,14 @@ func NewServiceContext(c config.Config) *ServiceContext {
 		Config:      c,
 		Redis:       redisClient,
 		TrackingRpc: tracking.NewTrackingServiceClient(client.Conn()),
+		grpcConn:    client.Conn(), // 保存 gRPC 连接用于关闭
+	}
+}
+
+// Close 关闭所有资源连接
+func (ctx *ServiceContext) Close() {
+	// 关闭 gRPC Client 连接
+	if ctx.grpcConn != nil {
+		ctx.grpcConn.Close()
 	}
 }

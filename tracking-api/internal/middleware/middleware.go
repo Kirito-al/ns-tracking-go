@@ -2,9 +2,13 @@ package middleware
 
 import (
 	"context"
+	"crypto/rand"
 	"net/http"
+	"runtime/debug"
 	"time"
 
+	"github.com/zeromicro/go-zero/core/logx"
+	"github.com/zeromicro/go-zero/core/threading"
 	"github.com/zeromicro/go-zero/rest/httpx"
 )
 
@@ -48,10 +52,11 @@ func TimeoutMiddleware(timeout time.Duration) func(next http.HandlerFunc) http.H
 			defer cancel()
 
 			done := make(chan struct{})
-			go func() {
+			// 使用 threading.GoSafe 替代裸 goroutine（自动 panic recovery）
+			threading.GoSafe(func() {
 				next(w, r.WithContext(ctx))
 				done <- struct{}{}
-			}()
+			})
 
 			select {
 			case <-done:
@@ -70,7 +75,8 @@ func RecoveryMiddleware() func(next http.HandlerFunc) http.HandlerFunc {
 		return func(w http.ResponseWriter, r *http.Request) {
 			defer func() {
 				if err := recover(); err != nil {
-					// 记录 panic 日志
+					// 记录 panic 日志（包含堆栈信息）
+					logx.Errorf("Panic recovered: %v\n%s", err, debug.Stack())
 					// 返回 500 错误
 					w.WriteHeader(http.StatusInternalServerError)
 					w.Write([]byte("Internal Server Error"))
@@ -86,11 +92,13 @@ func generateRequestID() string {
 	return time.Now().Format("20060102150405") + "-" + randomString(8)
 }
 
+// randomString 生成随机字符串（使用 crypto/rand 防止碰撞）
 func randomString(n int) string {
 	const letters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 	b := make([]byte, n)
+	rand.Read(b) // 使用 crypto/rand 生成随机字节
 	for i := range b {
-		b[i] = letters[time.Now().Nanosecond()%len(letters)]
+		b[i] = letters[b[i]%byte(len(letters))]
 	}
 	return string(b)
 }

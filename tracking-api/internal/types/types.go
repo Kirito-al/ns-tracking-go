@@ -34,8 +34,8 @@ type WebhookRequest struct {
 // TisPushRequest TIS Push Data 格式（snake_case，带 data 包装层）
 // 对标：真实业务中的 tisPushData 格式
 type TisPushRequest struct {
-	Data     *TisPushData `json:"data,omitempty"`      // 数据主体
-	DataCode string       `json:"data_code,omitempty"` // 数据标识 "tisPushData"
+	Data     *TisPushData `json:"data"`      // 数据主体（必填）
+	DataCode string       `json:"data_code"` // 数据标识 "tisPushData"（必填）
 }
 
 // TisPushData TIS Push 数据主体

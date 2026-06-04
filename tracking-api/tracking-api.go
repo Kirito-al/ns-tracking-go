@@ -27,6 +27,7 @@ func main() {
 
 	// 3. 创建服务上下文（依赖注入）
 	ctx := svc.NewServiceContext(c)
+	defer ctx.Close() // 确保资源释放
 
 	// 4. 注册 HTTP 处理器
 	routes.RegisterHandlers(server, ctx)

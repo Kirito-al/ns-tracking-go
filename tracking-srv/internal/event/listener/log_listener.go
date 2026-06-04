@@ -1,9 +1,8 @@
 package listener
 
 import (
-	"encoding/json"
-
 	"tracking-srv/internal/event/define"
+	"tracking-srv/internal/utils"
 
 	"github.com/zeromicro/go-zero/core/logx"
 )
@@ -20,51 +19,53 @@ func NewLogListener() *LogListener {
 
 // Handle 处理事件：打印日志
 func (l *LogListener) Handle(event define.Event) {
-	// 将事件转为 JSON（用于日志输出）
-	eventJSON, err := json.Marshal(event)
-	if err != nil {
-		logx.Errorf("LogListener marshal event failed: %v", err)
-		return
-	}
-
 	// 根据事件类型选择日志级别
 	switch event.EventType() {
 	case "tracking.upserted":
 		// 入库成功 → Info 级别
-		logx.Infof("Event: %s | EventID: %s | TrackingNumber: %s | Detail: %s",
+		logx.Infof("Event: %s | EventID: %s | TrackingNumber: %s",
 			event.EventType(),
 			event.EventID(),
 			l.extractTrackingNumber(event),
-			string(eventJSON),
 		)
+		// 详细 JSON 日志（脱敏后）
+		l.logEventJSON("info", event)
 
 	case "tracking.upsert_failed":
 		// 入库失败 → Error 级别
-		logx.Errorf("Event: %s | EventID: %s | TrackingNumber: %s | Error: %s | Detail: %s",
+		logx.Errorf("Event: %s | EventID: %s | TrackingNumber: %s | Error: %s",
 			event.EventType(),
 			event.EventID(),
 			l.extractTrackingNumber(event),
 			l.extractErrorMessage(event),
-			string(eventJSON),
 		)
+		// 详细 JSON 日志（脱敏后）
+		l.logEventJSON("error", event)
 
 	default:
 		// 其他事件 → Info 级别
-		logx.Infof("Event: %s | EventID: %s | Detail: %s",
+		logx.Infof("Event: %s | EventID: %s",
 			event.EventType(),
 			event.EventID(),
-			string(eventJSON),
 		)
+		l.logEventJSON("info", event)
 	}
+}
+
+// logEventJSON 打印事件 JSON 日志（辅助方法）
+func (l *LogListener) logEventJSON(level string, event define.Event) {
+	// 如需调试，可在此打印 JSON（生产环境建议关闭或降低级别）
+	// eventJSON, _ := json.Marshal(event)
+	// logx.Debugf("Event Detail: %s", string(eventJSON))
 }
 
 // extractTrackingNumber 提取运单号（通用方法）
 func (l *LogListener) extractTrackingNumber(event define.Event) string {
 	switch e := event.(type) {
 	case *define.TrackingUpsertedEvent:
-		return e.TrackingNumber
+		return utils.MaskTrackingNumber(e.TrackingNumber)
 	case *define.TrackingUpsertFailedEvent:
-		return e.TrackingNumber
+		return utils.MaskTrackingNumber(e.TrackingNumber)
 	default:
 		return "unknown"
 	}
