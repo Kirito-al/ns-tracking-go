@@ -70,7 +70,8 @@ func (f *YunExpressFormatter) extractOrderTrackingDetails() []TrackingDetailDTOI
 			return items
 		}
 	}
-	return nil
+	// 修复：返回空数组而不是 nil（避免 JSON 序列化为 null）
+	return []TrackingDetailDTOItem{}
 }
 
 // extractStringField 提取字符串字段（辅助函数）

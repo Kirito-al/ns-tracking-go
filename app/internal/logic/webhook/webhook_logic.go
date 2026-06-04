@@ -69,7 +69,7 @@ func (l *WebhookLogic) Webhook(req *types.WebhookRequest, accountType string) (r
 		TrackingNumber: req.WayBillNumber,
 		Detail:         string(detailJSON),
 		Status:         int32(statusCode),
-		ServiceClass:   "YunExpressService",
+		ServiceClass:   l.svcCtx.Config.ServiceClass, // 从配置读取（修复硬编码）
 	}
 
 	err = l.svcCtx.TrackingRepo.Save(l.ctx, detail)
