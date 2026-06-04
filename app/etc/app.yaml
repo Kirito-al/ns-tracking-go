@@ -1,0 +1,25 @@
+Name: ns-tracking-app
+Host: 0.0.0.0
+Port: 8082
+
+# PostgreSQL 数据库连接
+DataSource: postgres://postgres:123456@127.0.0.1:5432/ns_admin_webhook_development?sslmode=disable
+
+# Redis 配置
+RedisConf:
+  Host: localhost:6379
+  Pass: ""
+  Db: 0
+
+# Webhook 签名密钥
+YunExpressWebhookSecret: test-secret
+GEYunExpressWebhookSecret: test-ge-secret
+YunExpressSkipSignature: true  # 开发环境跳过验签
+
+# CORS 配置
+CORS:
+  AllowedOrigins:
+    - "*"
+  AllowedMethods:
+    - GET
+    - POST

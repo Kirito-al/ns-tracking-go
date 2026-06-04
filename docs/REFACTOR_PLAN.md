@@ -1,8 +1,480 @@
 # YunExpress Webhook Service - 重构实施计划
 
-> **项目目标**：完成云途物流 Webhook 改造（Pull → Push），实现 Go标准化接收、Ruby读缓存、最小风险迁移
+> **项目目标**：
+> 1. 完成云途物流 Webhook 改造（Pull → Push），实现 Go标准化接收、Ruby读缓存、最小风险迁移
+> 2. 完成架构重构（DDD领域驱动设计 + Go Workspaces多模块管理），提升可维护性和扩展性
 > **当前状态**：代码审查问题全部修复、Go Workspaces架构改造完成、核心逻辑已实现
-> **实施原则**：最小改动、最小风险、分阶段灰度
+> **实施原则**：最小改动、最小风险、分阶段灰度、DDD标准分层
+
+---
+
+## 〇、架构重构方案（DDD + Go Workspaces）
+
+### 0.1 架构重构目标
+
+**重构方向**：
+```
+当前架构（双服务API+RPC） → 目标架构（DDD单体服务 + 领域模块化）
+```
+
+**核心改造**：
+- **领域层**：DDD核心域/支撑域独立模块（物理隔离）
+- **基础设施层**：技术实现独立模块（database/cache/event/mq/cron）
+- **应用层**：唯一启动入口（单体服务API+HTTP合一）
+- **公共工具包**：全项目复用（errorx/toolx/constant）
+- **文档层**：AI编程规范 + 边界约束（强制遵守）
+
+### 0.2 目标架构设计（参考ns-purchase-go）
+
+```
+ns-tracking-go/                # 顶层工作区（DDD重构版）
+├── go.work                    # Go工作区：管理所有子模块（核心！）
+├── go.work.sum
+├── Makefile                   # 构建/测试/运行快捷命令
+├── Dockerfile                 # 容器化部署
+├── .golangci.yml              # 代码规范检查
+├── README.md                  # 项目说明
+├── CHANGELOG.md               # 版本更新日志
+
+# ======================================
+# 1. 应用层【唯一启动入口】go-zero 单体服务（API+HTTP合一）
+# ======================================
+├── app/
+│   ├── go.mod                 # 仅依赖需要的领域/基础设施模块
+│   ├── go.sum
+│   ├── main.go                # 服务启动入口（初始化：HTTP+定时+队列+事件）
+│   ├── app.api                # 内部业务API定义（go-zero自动生成）
+│   ├── etc/
+│   │   └── app.yaml           # 主服务配置（端口/DB/Redis/MQ）
+│   └── internal/
+│       ├── config/            # 配置结构体
+│       ├── svc/               # 全局服务上下文（DB/Redis/事件总线/客户端）
+│       ├── handler/           # HTTP路由处理器（自动生成）
+│       ├── logic/             # 业务编排（调用领域服务）
+│       └── middleware/        # 应用级中间件（鉴权/日志/限流）
+
+# ======================================
+# 2. 领域层【DDD核心】独立Module，物理隔离，独立go.mod
+# ======================================
+├── domain/
+│   # 核心域（tracking主营业务）
+│   ├── webhook/               # Webhook接收域（验签+格式化+幂等）
+│   │   ├── go.mod             # 无外部依赖
+│   │   ├── entity/            # 领域实体（WebhookRequest/UpsertRequest）
+│   │   ├── repo/              # 仓储接口（WebhookRepo）
+│   │   ├── service/           # 领域服务（WebhookService/FormatterService）
+│   │   ├── event/             # 领域事件（WebhookReceived/UpsertSuccess）
+│   │   └── webhook_test.go    # 单元测试
+│   ├── tracking/              # 轨迹查询域（详情+缓存）
+│   │   ├── go.mod             # 依赖 domain/webhook（共享entity）
+│   │   ├── entity/            # 领域实体（TrackingDetail/TrackingLog）
+│   │   ├── repo/              # 仓储接口（TrackingRepo/TrackingLogRepo）
+│   │   ├── service/           # 领域服务（TrackingService/CacheService）
+│   │   ├── event/             # 领域事件（CacheExpired/PullFallback）
+│   │   └── tracking_test.go
+│   ├── formatter/             # 格式化域（状态码映射+节点代码映射）
+│   │   ├── go.mod             # 无外部依赖
+│   │   ├── entity/            # 领域实体（StatusCodes/PackageState）
+│   │   ├── service/           # 领域服务（FormatterService/NormalizerService）
+│   │   └── formatter_test.go
+
+# ======================================
+# 3. 基础设施层【技术实现】定时/队列/事件/DB/缓存/日志
+# ======================================
+├── infrastructure/
+│   ├── go.mod                 # 依赖 pkg（公共工具）
+│   ├── database/              # 数据库（PostgreSQL）
+│   │   ├── db.go              # 连接初始化
+│   │   ├── migration/         # SQL数据迁移脚本
+│   │   └── repo_impl/         # 领域仓储实现（DB操作）
+│   │       ├── webhook_repo_impl.go
+│   │       ├── tracking_repo_impl.go
+│   │       └── tracking_log_repo_impl.go
+│   ├── cache/                 # 缓存（Redis）
+│   │   ├── redis.go           # Redis连接初始化
+│   │   └── cache_impl/        # 缓存实现
+│   ├── lock/                  # 分布式锁（防重复执行）
+│   ├── logger/                # 统一日志（zap/lumberjack）
+│   ├── event/                 # 【事件机制】事件总线、发布/订阅
+│   │   ├── dispatcher.go      # InMemory事件总线
+│   │   └── listener/          # 事件监听器注册
+│   ├── mq/                    # 【队列消费】Asynq 生产者+消费者
+│   │   ├── asynq.go           # Asynq配置
+│   │   └── handler/           # 任务处理器
+│   └── cron/                  # 【定时任务】缓存刷新、过期清理
+│       ├── scheduler.go       # 定时任务调度器
+│       └── jobs/              # 定时任务实现
+
+# ======================================
+# 4. 公共工具包【全项目复用】独立Module
+# ======================================
+├── pkg/
+│   ├── go.mod                 # 无外部依赖（基础库）
+│   ├── errorx/                # 统一错误码、错误处理
+│   ├── toolx/                 # 工具类（时间/加密/校验/ID生成/脱敏）
+│   ├── constant/              # 全局常量（审核状态/订单类型）
+│   └── validator/             # 参数校验
+
+# ======================================
+# 5. 对外开放API【OpenAPI】第三方对接专用（独立路由，按需开启）
+# ======================================
+├── api/
+│   ├── go.mod                 # 依赖 domain/webhook
+│   ├── openapi.api            # 对外API定义（文档+鉴权独立）
+│   ├── internal/
+│   │   ├── handler/
+│   │   ├── logic/
+│   │   └── middleware/        # 开放API专属鉴权（appkey/secret）
+│   └── docs/                  # Swagger 开放API文档
+
+# ======================================
+# 6. 测试层【单元/集成/E2E测试】
+# ======================================
+├── test/
+│   ├── integration/           # 集成测试（跨模块业务流程）
+│   ├── e2e/                   # 端到端测试（接口全流程）
+│   └── mock/                  # Mock数据（单元测试依赖）
+
+# ======================================
+# 7. CI/CD 部署脚本【自动化构建/测试/发布】
+# ======================================
+├── scripts/
+│   ├── ci/                    # CI脚本（代码检查/单元测试）
+│   ├── deploy/                # 部署脚本（dev/test/prod环境）
+│   └── sql/                   # 初始化SQL、业务SQL
+
+# ======================================
+# 8. 文档层【AI编程规范+边界约束+架构文档】
+# ======================================
+└── docs/
+    ├── architecture.md        # 系统架构图、DDD领域图
+    ├── swagger/               # 全接口Swagger文档
+    ├── ai-skills.md           # AI编程规范（提示词/生成规则/代码约束）
+    ├── boundary-rules.md      # 严格边界约束（开发强制遵守）
+    └── api.md                 # 接口文档
+    └── REFACTOR_PLAN.md       # 重构实施计划（本文档）
+```
+
+### 0.3 架构重构实施步骤（9个Phase）
+
+#### Phase 0：架构重构准备（第0周）
+
+**目标**：完成架构重构规划和模块划分
+
+**实施步骤**：
+1. **Step 0.1**：领域模块划分
+   - 核心域：webhook/tracking/formatter（主营业务）
+   - 支撑域：暂无（tracking服务单一业务）
+   - 基础设施：database/cache/event/mq/cron
+
+2. **Step 0.2**：依赖关系梳理
+   - domain/webhook → 无外部依赖（独立）
+   - domain/tracking → 依赖 domain/webhook（共享entity）
+   - domain/formatter → 无外部依赖（独立）
+   - infrastructure → 依赖 pkg（公共工具）
+   - app → 依赖 domain + infrastructure + pkg（编排层）
+
+3. **Step 0.3**：go.work 配置规划
+   ```go
+   go 1.25.0
+   
+   use (
+       ./app
+       ./domain/webhook
+       ./domain/tracking
+       ./domain/formatter
+       ./infrastructure
+       ./pkg
+       ./api  # 对外开放API（可选）
+   )
+   ```
+
+**验收标准**：
+- 领域模块划分清晰（核心域/支撑域）
+- 依赖关系梳理完成（单向依赖）
+- go.work 配置规划完成（8+模块）
+
+---
+
+#### Phase 1：基础设施层独立（第1周）
+
+**目标**：完成infrastructure模块独立，技术实现隔离
+
+**实施步骤**：
+1. **Step 1.1**：创建infrastructure模块
+   - 创建 `infrastructure/go.mod`
+   - 迁移 database/（db.go + repo_impl）
+   - 迁移 cache/（redis.go + cache_impl）
+   - 迁移 logger/（zap + lumberjack）
+
+2. **Step 1.2**：迁移仓储实现
+   - 从 `service/tracking/rpc/internal/dao/` → `infrastructure/database/repo_impl/`
+   - 重命名：tracking_dao.go → tracking_repo_impl.go
+   - 实现领域repo接口（domain/tracking/repo/tracking_repo.go）
+
+3. **Step 1.3**：迁移事件/队列/定时任务
+   - 从 `service/tracking/rpc/internal/event/` → `infrastructure/event/`
+   - 从 `service/tracking/rpc/internal/queue/` → `infrastructure/mq/`
+   - 创建 `infrastructure/cron/`（定时任务框架）
+
+**验收标准**：
+- infrastructure 模块编译通过
+- repo_impl 实现领域repo接口
+- 事件/队列/定时任务迁移完成
+
+---
+
+#### Phase 2：领域层独立模块（第2周）
+
+**目标**：完成domain模块独立，DDD分层标准
+
+**实施步骤**：
+1. **Step 2.1**：创建domain/webhook模块
+   - 创建 `domain/webhook/go.mod`
+   - 创建 entity/（WebhookRequest/UpsertRequest）
+   - 创建 repo/（WebhookRepo接口）
+   - 创建 service/（WebhookService接口）
+   - 创建 event/（WebhookReceived/UpsertSuccess）
+
+2. **Step 2.2**：创建domain/tracking模块
+   - 创建 `domain/tracking/go.mod`（依赖 domain/webhook）
+   - 创建 entity/（TrackingDetail/TrackingLog）
+   - 创建 repo/（TrackingRepo/TrackingLogRepo接口）
+   - 创建 service/（TrackingService/CacheService接口）
+   - 创建 event/（CacheExpired/PullFallback）
+
+3. **Step 2.3**：创建domain/formatter模块
+   - 创建 `domain/formatter/go.mod`
+   - 创建 entity/（StatusCodes/PackageState）
+   - 创建 service/（FormatterService/NormalizerService）
+   - 迁移状态码映射逻辑（从api/internal/formatter）
+
+**验收标准**：
+- domain 模块编译通过（3个模块）
+- entity/repo/service/event 分层标准
+- 领域服务接口定义清晰
+
+---
+
+#### Phase 3：应用层重构（第3周）
+
+**目标**：完成app模块重构，单体服务API+HTTP合一
+
+**实施步骤**：
+1. **Step 3.1**：创建app模块
+   - 创建 `app/go.mod`（依赖 domain + infrastructure + pkg）
+   - 创建 `app/main.go`（唯一启动入口）
+   - 创建 `app/app.api`（HTTP接口定义）
+   - 创建 `app/etc/app.yaml`（服务配置）
+
+2. **Step 3.2**：迁移Handler/Logic
+   - 从 `service/tracking/api/internal/handler/` → `app/internal/handler/`
+   - 从 `service/tracking/api/internal/logic/` → `app/internal/logic/`
+   - Logic层改为调用领域服务（domain/webhook/service）
+
+3. **Step 3.3**：迁移ServiceContext
+   - 从 `service/tracking/api/internal/svc/` → `app/internal/svc/`
+   - ServiceContext改为注入领域服务和基础设施组件
+
+**验收标准**：
+- app 模块编译通过
+- HTTP接口正常响应（测试接口）
+- Logic层调用领域服务正确
+
+---
+
+#### Phase 4：公共工具包独立（第4周）
+
+**目标**：完成pkg模块独立，全项目复用
+
+**实施步骤**：
+1. **Step 4.1**：创建pkg模块
+   - 创建 `pkg/go.mod`
+   - 创建 errorx/（统一错误码）
+   - 创建 toolx/（工具类：时间/加密/校验/ID生成/脱敏）
+   - 创建 constant/（全局常量）
+
+2. **Step 4.2**：迁移公共工具
+   - 从 `service/tracking/rpc/internal/utils/` → `pkg/toolx/`
+   - 从 `service/tracking/api/internal/utils/` → `pkg/toolx/`
+   - 统一错误码定义（errorx/）
+
+3. **Step 4.3**：更新依赖引用
+   - 更新 infrastructure/go.mod（依赖 pkg）
+   - 更新 domain/go.mod（依赖 pkg）
+   - 更新 app/go.mod（依赖 pkg）
+
+**验收标准**：
+- pkg 模块编译通过
+- 公共工具迁移完成
+- 依赖引用更新正确
+
+---
+
+#### Phase 5：go.work配置完成（第5周）
+
+**目标**：完成go.work配置，多模块管理
+
+**实施步骤**：
+1. **Step 5.1**：创建顶层go.work
+   ```go
+   go 1.25.0
+   
+   use (
+       ./app
+       ./domain/webhook
+       ./domain/tracking
+       ./domain/formatter
+       ./infrastructure
+       ./pkg
+   )
+   ```
+
+2. **Step 5.2**：清理旧架构
+   - 删除 `service/tracking/api/`（已迁移到app）
+   - 删除 `service/tracking/rpc/`（已迁移到domain/infrastructure）
+   - 删除 `contracts/`（已废弃）
+
+3. **Step 5.3**：验证编译
+   - 运行 `go work sync`
+   - 运行 `make build`（编译所有模块）
+   - 运行 `go test ./...`（单元测试）
+
+**验收标准**：
+- go.work 配置正确（6+模块）
+- 编译通过（无错误）
+- 单元测试通过
+
+---
+
+#### Phase 6：文档层完善（第6周）
+
+**目标**：完成文档层，AI编程规范+边界约束
+
+**实施步骤**：
+1. **Step 6.1**：创建AI编程规范（docs/ai-skills.md）
+   - 提示词模板：创建领域模块、遵循DDD标准
+   - 代码生成规则：entity/repo/service/event分层
+   - 禁止事项：不允许跨领域直接调用、不允许混合技术实现
+
+2. **Step 6.2**：创建边界约束（docs/boundary-rules.md）
+   - 领域边界：domain模块物理隔离
+   - 依赖边界：只允许单向依赖
+   - 数据边界：entity不得跨领域共享
+
+3. **Step 6.3**：创建架构图（docs/architecture.md）
+   - DDD领域图（核心域/支撑域）
+   - 模块依赖图（单向依赖）
+   - 数据流转图（Webhook → Upsert → Cache）
+
+**验收标准**：
+- AI编程规范清晰（提示词模板）
+- 边界约束明确（强制遵守）
+- 架构图完整（DDD可视化）
+
+---
+
+#### Phase 7：测试层完善（第7周）
+
+**目标**：完成测试分层（unit/integration/e2e）
+
+**实施步骤**：
+1. **Step 7.1**：单元测试完善
+   - domain/webhook/webhook_test.go
+   - domain/tracking/tracking_test.go
+   - domain/formatter/formatter_test.go
+
+2. **Step 7.2**：集成测试完善
+   - test/integration/webhook_flow_test.go（Webhook → Upsert → Cache）
+   - test/integration/cache_expired_test.go（缓存过期 → Pull兜底）
+
+3. **Step 7.3**：E2E测试完善
+   - test/e2e/webhook_push_test.go（真实云途推送）
+   - test/e2e/tracking_query_test.go（轨迹查询）
+
+**验收标准**：
+- 单元测试覆盖率 > 80%
+- 集成测试通过（跨模块流程）
+- E2E测试通过（真实场景）
+
+---
+
+#### Phase 8：CI/CD配置（第8周）
+
+**目标**：完成CI/CD自动化构建/测试/发布
+
+**实施步骤**：
+1. **Step 8.1**：创建CI脚本
+   - scripts/ci/code_check.sh（golangci-lint）
+   - scripts/ci/unit_test.sh（go test ./...）
+   - scripts/ci/build.sh（make build）
+
+2. **Step 8.2**：创建部署脚本
+   - scripts/deploy/dev.sh（开发环境）
+   - scripts/deploy/test.sh（测试环境）
+   - scripts/deploy/prod.sh（生产环境）
+
+3. **Step 8.3**：配置Dockerfile
+   - 多阶段构建（builder → runtime）
+   - 最小化镜像（alpine基础）
+   - 健康检查（HEALTHCHECK）
+
+**验收标准**：
+- CI脚本运行正常（代码检查+单元测试）
+- 部署脚本运行正常（dev/test/prod）
+- Dockerfile构建成功
+
+---
+
+#### Phase 9：灰度发布+验证（第9周）
+
+**目标**：完成架构重构灰度发布，验证生产稳定
+
+**实施步骤**：
+1. **Step 9.1**：灰度发布配置
+   - 灰度比例：10% → 30% → 50% → 100%
+   - 监控指标：Webhook接收成功率、缓存命中率
+
+2. **Step 9.2**：性能验证
+   - Webhook接收耗时 < 200ms
+   - Upsert耗时 < 500ms
+   - 缓存查询耗时 < 50ms
+
+3. **Step 9.3**：稳定性验证
+   - 连续运行7天无异常
+   - 告警触发率 < 5%
+   - 缓存命中率 > 95%
+
+**验收标准**：
+- 灰度发布完成（100%流量）
+- 性能指标达标（耗时标准）
+- 稳定性验证通过（7天无异常）
+
+---
+
+### 0.4 架构重构关键决策
+
+| 决策项 | 当前架构 | 目标架构 | 原因 |
+|-------|---------|---------|------|
+| **服务架构** | 双服务（API+RPC） | 单体服务（API+HTTP合一） | 简化运维、降低复杂度、减少网络开销 |
+| **领域划分** | 无DDD分层 | DDD核心域独立模块 | 职责清晰、可维护性高、易于扩展 |
+| **依赖管理** | go.work（2模块） | go.work（6+模块） | 模块化程度高、依赖隔离、避免冲突 |
+| **基础设施** | 混合在服务内部 | 独立infrastructure模块 | 技术实现隔离、易于替换、降低耦合 |
+| **公共工具** | 未独立 | 独立pkg模块 | 复用性强、统一规范、易于维护 |
+| **测试分层** | 单元测试 | unit/integration/e2e三层 | 测试覆盖全面、质量保障、易于排查 |
+| **文档规范** | README | 文档层（AI规范+边界约束） | 规范性强、AI友好、强制遵守 |
+
+---
+
+### 0.5 架构重构风险与缓解
+
+| 风险点 | 影响 | 缓解措施 |
+|--------|------|---------|
+| **模块划分不当** | 依赖关系混乱 | Phase 0详细规划，单向依赖检查 |
+| **迁移遗漏** | 功能缺失 | 分阶段迁移，每阶段验收测试 |
+| **编译失败** | 服务无法启动 | 每阶段编译验证，逐步修复 |
+| **性能下降** | 服务响应慢 | 性能测试验证，优化瓶颈 |
+| **测试覆盖不足** | 质量问题 | 测试覆盖率检查，补充测试 |
 
 ---
 

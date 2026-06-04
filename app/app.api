@@ -1,0 +1,219 @@
+syntax = "v1"
+
+info (
+	title:   "云途物流 Webhook API"
+	desc:    "接收云途物流 Webhook 推送，写入数据库"
+	author:  "yourname"
+	version: "v1.0.0"
+)
+
+// ===================== HTTP 接口定义 =====================
+
+// Webhook 请求结构
+type WebhookRequest {
+	TrackingNumber       string          `json:"trackingNumber"`       // 云途运单号（主单号）
+	WayBillNumber        string          `json:"wayBillNumber"`        // 运单号（通常与 trackingNumber 相同）
+	TrackingStatus       string          `json:"trackingStatus"`       // 当前最新状态码（云途内部状态）
+	PackageState         string          `json:"packageState"`         // 包裹状态（2=运输中）
+	OrderTrackingDetails []TrackingDetail `json:"orderTrackingDetails"` // 轨迹明细数组
+	ProviderName         string          `json:"providerName"`         // 物流服务商名称
+	ProviderSite         string          `json:"providerSite"`         // 物流商查询网站
+	ProvicerTelephone    string          `json:"provicerTelephone"`    // 物流商客服电话
+	CountryCode          string          `json:"countryCode"`          // 目的国代码（如：US）
+	OriginCountryCode    string          `json:"originCountryCode"`    // 始发国代码（如：CN）
+	TrackingNumber2      string          `json:"trackingNumber2"`      // 尾程单号（交给 USPS 后的美国境内单号）
+	LastMileCarrierName  string          `json:"lastMileCarrierName"`  // 尾程承运商（如：USPS）
+	CreatedBy            string          `json:"createdBy"`            // 运单创建时间
+	POD                  string          `json:"pod"`                  // 签收证明（Proof of Delivery）
+}
+
+// 轨迹详情节点
+type TrackingDetail {
+	ProcessDate     string `json:"processDate"`     // 扫描时间（ISO8601 格式）
+	ProcessLocation string `json:"processLocation"` // 扫描地点（如：深圳、广州）
+	ProcessContent  string `json:"processContent"`  // 事件描述（如：快件电子信息已收到）
+	TrackingStatus  string `json:"trackingStatus"`  // 该节点的状态码
+}
+
+// Webhook 响应结构
+type WebhookResponse {
+	Success        bool   `json:"success"`        // 处理是否成功（true=已写入数据库）
+	TrackingNumber string `json:"trackingNumber"` // 确认处理的运单号
+	Status         string `json:"status"`         // 确认收到的状态码
+	PackageState   string `json:"packageState"`   // 确认收到的包裹状态
+}
+
+// 查询追踪数据请求
+type GetTrackingRequest {
+	TrackingNumber string `path:"number"` // 运单号（从 URL 路径获取）
+}
+
+// 查询追踪数据响应
+type GetTrackingResponse {
+	TrackingNumber string           `json:"trackingNumber"` // 运单号
+	Detail         *TrackingDetailDTO `json:"detail"`         // 轨迹详情（格式化后的 JSON）
+	Status         int32            `json:"status"`         // 状态码（0-1001）
+	ServiceClass   string           `json:"serviceClass"`   // 服务类名（YunExpressService）
+	SyncedAt       int64            `json:"syncedAt"`       // 同步时间戳
+	ErrorMessage   string           `json:"errorMessage"`   // 错误信息（如果有）
+}
+
+// 轨迹详情 DTO（格式化后的数据）
+type TrackingDetailDTO {
+	Item TrackingItemDTO `json:"Item"` // Item 字段（对标 Ruby 结构）
+}
+
+// TrackingItemDTO Item 字段结构
+type TrackingItemDTO {
+	TrackingNumber       string               `json:"TrackingNumber"`       // 尾程单号
+	WayBillNumber        string               `json:"WayBillNumber"`        // 主单号
+	CarrierName          string               `json:"CarrierName"`          // 承运商名称
+	ProviderName         string               `json:"ProviderName"`         // 物流商名称
+	ProvicerTelephone    string               `json:"ProvicerTelephone"`    // 物流商电话
+	ProviderSite         string               `json:"ProviderSite"`         // 物流商网站
+	CountryCode          string               `json:"CountryCode"`          // 目的国
+	OriginCountryCode    string               `json:"OriginCountryCode"`    // 始发国
+	TrackingStatus       string               `json:"TrackingStatus"`       // 状态码
+	PackageState         string               `json:"PackageState"`         // 包裹状态
+	IntervalDays         *int32               `json:"IntervalDays"`         // 运输天数
+	CreatedBy            string               `json:"CreatedBy"`            // 创建时间
+	POD                  string               `json:"POD"`                  // 签收证明
+	LastMileCarrierName  string               `json:"LastMileCarrierName"`  // 尾程承运商
+	OrderTrackingDetails []TrackingDetailDTOItem `json:"OrderTrackingDetails"` // 轨迹明细列表
+}
+
+// TrackingDetailDTOItem 轨迹明细项
+type TrackingDetailDTOItem {
+	ProcessDate     string `json:"ProcessDate"`     // 扫描时间
+	ProcessLocation string `json:"ProcessLocation"` // 扫描地点
+	ProcessContent  string `json:"ProcessContent"`  // 事件描述
+	TrackingStatus  string `json:"TrackingStatus"`  // 状态码
+}
+
+// 统一响应结构
+type Response {
+	Code    int         `json:"code"`    // 响应码：200 成功，400 参数错误，401 签名失败，500 服务器错误
+	Message string      `json:"message"` // 响应消息：success 或 错误描述
+	Data    interface{} `json:"data"`    // 响应数据：任意结构体
+}
+
+// ===================== ns-admin 管理后台类型 =====================
+
+// AdminBatchQueryRequest 管理员批量查询请求
+type AdminBatchQueryRequest {
+	TrackingNumbers []string `json:"tracking_numbers"` // 运单号列表
+	IncludeDetails  bool     `json:"include_details"`  // 是否包含轨迹详情
+	Limit           int      `json:"limit"`            // 返回数量限制（默认 100）
+}
+
+// AdminHealthRequest 管理员健康检查请求
+type AdminHealthRequest struct {
+	CheckRedis   bool `json:"check_redis"`    // 是否检查 Redis
+	Check Database bool `json:"check_database"` // 是否检查数据库
+}
+
+// ===================== ns-tracking 公开 API 类型 =====================
+
+// PublicBatchQueryRequest 公开批量查询请求
+type PublicBatchQueryRequest {
+	TrackingNumbers []string `json:"tracking_numbers"` // 运单号列表（最多 50 个）
+}
+
+// PublicBatchQueryResponse 公开批量查询响应
+type PublicBatchQueryResponse {
+	Results []PublicQueryResult `json:"results"` // 查询结果列表
+}
+
+// PublicQueryResult 单个查询结果
+type PublicQueryResult {
+	TrackingNumber string `json:"tracking_number"` // 运单号
+	Status         string `json:"status"`          // 状态描述
+	PackageState   string `json:"package_state"`   // 包裹状态
+	LastUpdate     string `json:"last_update"`     // 最后更新时间
+}
+
+// ===================== 服务定义 =====================
+
+// Webhook 服务（云途物流推送接收）
+@server (
+	prefix: /webhook/yunexpress/tracking
+)
+service tracking-api {
+	@doc "云途 Webhook 推送接口（普通账号）"
+	@handler WebhookNormalHandler
+	post /normal (WebhookRequest) returns (Response)
+
+	@doc "云途 Webhook 推送接口（GE 账号）"
+	@handler WebhookGEHandler
+	post /ge (WebhookRequest) returns (Response)
+}
+
+// 内部 API（供 Ruby Rails 调用）
+@server (
+	prefix: /internal/tracking
+)
+service tracking-api {
+	@doc "查询追踪数据（供 Ruby Rails 调用）"
+	@handler GetTrackingHandler
+	get /:number (GetTrackingRequest) returns (Response)
+}
+
+// ns-admin 管理后台 API（新增）
+@server (
+	prefix: /api/v1/admin
+)
+service tracking-api {
+	@doc "管理员查询轨迹（支持多单号批量查询）"
+	@handler AdminBatchQueryHandler
+	post /tracking/batch (AdminBatchQueryRequest) returns (Response)
+
+	@doc "管理员查询轨迹详情"
+	@handler AdminGetTrackingHandler
+	get /tracking/:number (GetTrackingRequest) returns (Response)
+
+	@doc "查询系统健康状态"
+	@handler AdminHealthHandler
+	get /health (AdminHealthRequest) returns (Response)
+}
+
+// ns-tracking 轨迹服务 API（新增）
+@server (
+	prefix: /api/v1/tracking
+)
+service tracking-api {
+	@doc "公开轨迹查询接口（供前端调用）"
+	@handler PublicQueryHandler
+	get /:number (GetTrackingRequest) returns (Response)
+
+	@doc "批量轨迹查询"
+	@handler PublicBatchQueryHandler
+	post /batch (PublicBatchQueryRequest) returns (Response)
+}
+
+// 健康检查
+@server (
+	prefix: /health
+)
+service tracking-api {
+	@doc "健康检查接口"
+	@handler HealthHandler
+	get / returns (Response)
+}
+
+@server (
+	prefix: /internal/tracking
+)
+service tracking-api {
+	@doc "内部 API：查询追踪数据（供 Ruby Rails 调用）"
+	@handler GetTrackingHandler
+	get /:number (GetTrackingRequest) returns (Response)
+}
+
+@server (
+	prefix: /health
+)
+service tracking-api {
+	@doc "健康检查接口"
+	@handler HealthHandler
+	get / returns (Response)
+}
