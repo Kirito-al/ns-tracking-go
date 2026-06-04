@@ -5,6 +5,13 @@ ListenOn: 127.0.0.1:50051
 # ===================== 数据库配置 =====================
 DataSource: postgres://postgres:123456@127.0.0.1:5432/ns_admin_webhook_development?sslmode=disable
 
+# 数据库连接池配置（优化：避免连接耗尽）
+DatabaseConfig:
+  MaxOpenConns: 100        # 最大打开连接数
+  MaxIdleConns: 25         # 最大空闲连接数
+  ConnMaxLifetime: 300     # 连接最大生命周期（秒，5分钟）
+  ConnMaxIdleTime: 60      # 空闲连接最大存活时间（秒，1分钟）
+
 # ===================== Redis 配置 =====================
 RedisConf:
   Host: localhost:6379

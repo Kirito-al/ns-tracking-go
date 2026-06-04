@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"strconv"
 
+	"tracking-api/internal/formatter"
 	"tracking-api/internal/svc"
 	"tracking-api/internal/types"
 
@@ -63,7 +64,10 @@ func (l *WebhookLogic) Webhook(req *types.WebhookRequest, accountType string) (r
 	}
 
 	// 2. 格式化轨迹数据（对标 Ruby YunExpressTrackFormatter）
-	formatted := l.formatPayload(req)
+	// 使用新的 formatter 包
+	raw := convertWebhookRequestToMap(req)
+	formatter := formatter.NewYunExpressFormatter(raw)
+	formatted := formatter.Format()
 
 	// 3. 转换为 JSON
 	detailJSON, err := json.Marshal(formatted)
@@ -77,8 +81,8 @@ func (l *WebhookLogic) Webhook(req *types.WebhookRequest, accountType string) (r
 
 	// 4. 解析状态码
 	statusCode := 0
-	if formatted.Item.TrackingStatus != "" {
-		code, _ := strconv.Atoi(formatted.Item.TrackingStatus)
+	if formatted.Response.Item.TrackingStatus != "" {
+		code, _ := strconv.Atoi(formatted.Response.Item.TrackingStatus)
 		statusCode = code
 	}
 
@@ -106,8 +110,8 @@ func (l *WebhookLogic) Webhook(req *types.WebhookRequest, accountType string) (r
 		Data: types.WebhookResponse{
 			Success:        true,
 			TrackingNumber: req.WayBillNumber,
-			Status:         formatted.Item.TrackingStatus,
-			PackageState:   formatted.Item.PackageState,
+			Status:         formatted.Response.Item.TrackingStatus,
+			PackageState:   formatted.Response.Item.PackageState,
 		},
 	}, nil
 }
@@ -147,132 +151,45 @@ func (l *WebhookLogic) verifySignature(req *types.WebhookRequest, accountType st
 	return false
 }
 
-// formatPayload 格式化云途推送的 Payload（对标 Ruby YunExpressTrackFormatter）
-func (l *WebhookLogic) formatPayload(req *types.WebhookRequest) *types.TrackingDetailDTO {
-	// 对标 Ruby YunExpressTrackFormatter.Format()
-	// 1. 计算 PackageState
-	packageState := l.calculatePackageState(req.OrderTrackingDetails)
-
-	// 2. 获取最新状态码
-	trackingStatus := l.getLatestTrackingStatus(req.OrderTrackingDetails)
-
-	// 3. 排序轨迹详情（按时间升序）
-	sortedDetails := l.sortTrackingDetails(req.OrderTrackingDetails)
-
-	// 4. 构建格式化结构（添加 Item 包装层，匹配查询接口期望格式）
-	return &types.TrackingDetailDTO{
-		Item: types.TrackingItemDTO{
-			TrackingNumber:       req.TrackingNumber2,
-			WayBillNumber:        req.WayBillNumber,
-			CarrierName:          "云途",
-			ProviderName:         req.ProviderName,
-			ProvicerTelephone:    req.ProvicerTelephone,
-			ProviderSite:         req.ProviderSite,
-			CountryCode:          req.CountryCode,
-			OriginCountryCode:    req.OriginCountryCode,
-			TrackingStatus:       trackingStatus,
-			PackageState:         packageState,
-			IntervalDays:         nil,
-			CreatedBy:            req.CreatedBy,
-			POD:                  req.POD,
-			LastMileCarrierName:  req.LastMileCarrierName,
-			OrderTrackingDetails: sortedDetails,
-		},
-	}
-}
-
-// calculatePackageState 计算包裹状态（对标 Ruby STATUS_CODES_TO_PACKAGE_STATES）
-func (l *WebhookLogic) calculatePackageState(details []types.TrackingDetail) string {
-	if len(details) == 0 {
-		return "0"
-	}
-	latestStatus := l.getLatestTrackingStatus(details)
-	return l.getPackageState(latestStatus)
-}
-
-// getLatestTrackingStatus 获取最新状态码
-func (l *WebhookLogic) getLatestTrackingStatus(details []types.TrackingDetail) string {
-	if len(details) == 0 {
-		return ""
-	}
-	sorted := l.sortTrackingDetails(details)
-	return sorted[len(sorted)-1].TrackingStatus
-}
-
-// sortTrackingDetails 排序轨迹详情（按时间升序）
-func (l *WebhookLogic) sortTrackingDetails(details []types.TrackingDetail) []types.TrackingDetailDTOItem {
-	if len(details) == 0 {
-		return nil
+// convertWebhookRequestToMap 将 WebhookRequest 转换为 map 格式
+// 用于调用 formatter 包
+// 注意：字段名使用大写开头（匹配 formatter 期望的格式）
+func convertWebhookRequestToMap(req *types.WebhookRequest) map[string]interface{} {
+	raw := map[string]interface{}{
+		"TrackingNumber":    req.TrackingNumber,
+		"WayBillNumber":     req.WayBillNumber,
+		"TrackingStatus":    req.TrackingStatus,
+		"PackageState":      req.PackageState,
+		"ProviderName":      req.ProviderName,
+		"ProviderSite":      req.ProviderSite,
+		"ProviderTelephone": req.ProvicerTelephone,
+		"CountryCode":       req.CountryCode,
+		"OriginCountryCode": req.OriginCountryCode,
+		"TrackingNumber2":   req.TrackingNumber2,
+		"LastMileCarrierName": req.LastMileCarrierName,
+		"CreatedBy":         req.CreatedBy,
+		"POD":               req.POD,
 	}
 
-	// 转换为 DTO 格式
-	items := make([]types.TrackingDetailDTOItem, len(details))
-	for i, d := range details {
-		items[i] = types.TrackingDetailDTOItem{
-			ProcessDate:     d.ProcessDate,
-			ProcessLocation: d.ProcessLocation,
-			ProcessContent:  d.ProcessContent,
-			TrackingStatus:  d.TrackingStatus,
+	// 转换 OrderTrackingDetails（大写开头）
+	details := make([]map[string]interface{}, len(req.OrderTrackingDetails))
+	for i, d := range req.OrderTrackingDetails {
+		details[i] = map[string]interface{}{
+			"ProcessDate":     d.ProcessDate,
+			"ProcessLocation": d.ProcessLocation,
+			"ProcessContent":  d.ProcessContent,
+			"TrackingStatus":  d.TrackingStatus,
 		}
 	}
+	raw["OrderTrackingDetails"] = details
 
-	// 按时间排序（简化实现：冒泡排序）
-	for i := 0; i < len(items)-1; i++ {
-		for j := i + 1; j < len(items); j++ {
-			if items[i].ProcessDate > items[j].ProcessDate {
-				items[i], items[j] = items[j], items[i]
-			}
-		}
-	}
-
-	return items
+	return raw
 }
 
-// getStatusText 获取状态码对应的文本描述（对标 Ruby YunExpressTrackFormatter::STATUS_CODES）
-// 完整版本：对标 yun_express_track_formatter.rb:6-19
-func (l *WebhookLogic) getStatusText(trackingStatus string) string {
-	STATUS_CODES := map[string]string{
-		"0":    "NotFound",
-		"10":   "InfoReceived",
-		"20":   "InTransit",
-		"30":   "AvailableForPickup",
-		"40":   "DeliveryFailure",
-		"50":   "Delivered",
-		"60":   "Exception",
-		"70":   "Expired",
-		"80":   "Exception",
-		"90":   "Exception_Returned",
-		"100":  "Exception_Cancel",
-		"1001": "InTransit_Arrival", // 非云途状态（用于兼容其他物流商）
-	}
-	
-	if text, ok := STATUS_CODES[trackingStatus]; ok {
-		return text
-	}
-	return "Undefined"
-}
-
-// getPackageState 状态码映射到包裹状态（对标 Ruby YunExpressTrackFormatter）
-// 完整版本：对标 yun_express_track_formatter.rb:38-50
-func (l *WebhookLogic) getPackageState(trackingStatus string) string {
-	// 完整的状态码映射（对标 Ruby STATUS_CODES_TO_PACKAGE_STATES）
-	STATUS_CODES_TO_PACKAGE_STATES := map[string]string{
-		"0":   "0", // Undefined
-		"10":  "4", // Received / InfoReceived
-		"20":  "2", // InTransit
-		"30":  "2", // AvailableForPickup → InTransit
-		"40":  "6", // DeliveryFailure
-		"50":  "3", // Delivered
-		"60":  "6", // Exception → Delivery Failed
-		"70":  "6", // Expired → Delivery Failed
-		"80":  "6", // Exception → Delivery Failed
-		"90":  "7", // Exception_Returned → Returned
-		"100": "5", // Exception_Cancel → Canceled
-		"1001": "2", // InTransit_Arrival → InTransit（非云途状态）
-	}
-	
-	if state, ok := STATUS_CODES_TO_PACKAGE_STATES[trackingStatus]; ok {
-		return state
-	}
-	return "0" // 默认 Undefined
-}
+// ===================== 以下函数已迁移到 formatter 包，保留兼容性注释 =====================
+// formatPayload → formatter.NewYunExpressFormatter(raw).Format()
+// calculatePackageState → formatter.GetPackageState()
+// getLatestTrackingStatus → formatter.GetLatestStatus()
+// sortTrackingDetails → formatter.SortEventsByTime()
+// getStatusText → formatter.GetStatusText()
+// getPackageState → formatter.GetPackageState()

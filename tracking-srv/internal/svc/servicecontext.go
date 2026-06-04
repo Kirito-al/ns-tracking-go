@@ -27,8 +27,9 @@ type ServiceContext struct {
 	DB *gorm.DB
 
 	// DAO 层（数据访问层）
-	TrackingDAO    *dao.TrackingDAO    // tracking_details 表 DAO
-	TrackingLogDAO *dao.TrackingLogDAO // tracking_logs 表 DAO
+	TrackingDAO         *dao.TrackingDAO         // tracking_details 表 DAO
+	TrackingLogDAO      *dao.TrackingLogDAO      // tracking_logs 表 DAO
+	OverseasPackageDAO  *dao.OverseasPackageDAO  // overseas_package_tracking_logs 表 DAO
 
 	// 🆕 事件分发器（Demo 阶段新增）
 	EventDispatcher dispatcher.Dispatcher
@@ -82,6 +83,7 @@ func NewServiceContext(c config.Config) *ServiceContext {
 	// 4. 创建 DAO 层
 	trackingDAO := dao.NewTrackingDAO(db)
 	trackingLogDAO := dao.NewTrackingLogDAO(db)
+	overseasPackageDAO := dao.NewOverseasPackageDAO(db)
 
 	// 5. 创建 Asynq Client（用于 Enqueue 任务）
 	var asynqClient *asynq.Client
@@ -102,12 +104,13 @@ func NewServiceContext(c config.Config) *ServiceContext {
 	// 这里先设置为 nil，后续通过 svcCtx.EventDispatcher = dispatcher.NewInMemoryDispatcher() 注入
 
 	return &ServiceContext{
-		Config:         c,
-		Redis:          redisClient,
-		DB:             db,
-		TrackingDAO:    trackingDAO,
-		TrackingLogDAO: trackingLogDAO,
-		EventDispatcher: nil, // 启动时注入
-		AsynqClient:     asynqClient,
+		Config:            c,
+		Redis:             redisClient,
+		DB:                db,
+		TrackingDAO:       trackingDAO,
+		TrackingLogDAO:    trackingLogDAO,
+		OverseasPackageDAO: overseasPackageDAO,
+		EventDispatcher:   nil, // 启动时注入
+		AsynqClient:        asynqClient,
 	}
 }

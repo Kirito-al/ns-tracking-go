@@ -7,7 +7,8 @@ Port: 8082  # 改成 8082 端口
 # 开发环境：直接连接 gRPC 服务
 TrackingRpc:
   Target: 127.0.0.1:50051
-  Timeout: 5000
+  Timeout: 3000          # 3 秒超时（优化：从 5 秒降为 3 秒）
+  NonBlock: true         # 连不上不阻塞（优化：避免阻塞启动）
 
 # 生产环境：使用 Consul 服务发现
 # TrackingRpc:
@@ -40,6 +41,6 @@ CORS:
     - Authorization
 
 # ===================== 限流 =====================
-MaxConns: 1000
-Timeout: 30000
+MaxConns: 1000           # 最大并发连接数（限流保护）
+Timeout: 5000            # HTTP 请求超时（优化：从 30 秒降为 5 秒）
 CpuThreshold: 900

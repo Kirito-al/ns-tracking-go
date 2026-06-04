@@ -28,6 +28,11 @@ func RegisterHandlers(server *rest.Server, serverCtx *svc.ServiceContext) {
 				Path:    "/webhook/yunexpress/tracking/ge",
 				Handler: webhookHandler.WebhookGEHandler(serverCtx),
 			},
+			{
+				Method:  http.MethodPost,
+				Path:    "/webhook/tis/push",
+				Handler: webhookHandler.TisPushHandler(serverCtx),
+			},
 		},
 	)
 

@@ -43,8 +43,16 @@ func (d *InMemoryDispatcher) Dispatch(event define.Event) {
 
 	// 同步调用所有监听器（Demo阶段简化）
 	// 下期：改为异步调用（goroutine）
+	// 优化：添加 panic recover，避免单个监听器崩溃影响其他监听器
 	for _, listener := range listeners {
-		listener.Handle(event)
+		func() {
+			defer func() {
+				if r := recover(); r != nil {
+					logx.Errorf("listener panic recovered, event=%s, panic=%v", event.EventType(), r)
+				}
+			}()
+			listener.Handle(event)
+		}()
 	}
 
 	logx.Infof("Event dispatched: %s, listeners_count=%d", event.EventType(), len(listeners))

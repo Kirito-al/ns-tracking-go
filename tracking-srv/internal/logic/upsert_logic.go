@@ -105,7 +105,8 @@ func (l *UpsertLogic) Upsert(in *tracking.UpsertRequest) (*tracking.UpsertRespon
 		// ========== Step 3: 同步回写tracking_log状态 ==========
 		// 对标：Ruby tracking_detail.rb:316-328 (sync_tracking_log)
 		// 转换状态码：tracking_detail.status → tracking_log.track_status
-		trackStatus := l.convertStatusToTrackStatus(in.Status)
+		// 注意：需要检查 overseas_package（影响 InfoReceived 状态映射）
+		trackStatus := l.mapTrackStatus(in.TrackingNumber, in.Status)
 		syncedAt := in.SyncedAt
 
 		err = l.svcCtx.TrackingDAO.SyncTrackingLog(l.ctx, in.TrackingNumber, trackStatus, syncedAt)
@@ -147,29 +148,81 @@ func (l *UpsertLogic) Upsert(in *tracking.UpsertRequest) (*tracking.UpsertRespon
 	}, nil
 }
 
-// convertStatusToTrackStatus 转换状态码（tracking_detail → tracking_log）
-// 对标：Ruby tracking_detail.rb:73-89 (tracking_status方法)
-// 映射规则：
-//  - 0 (NotFound) → 0 (to_receive)
-//  - 10 (InfoReceived) → 0 (to_receive)
-//  - 20 (InTransit) → 1 (in_transit)
-//  - 30 (AvailableForPickup) → 2 (delivered)
-//  - 50 (Delivered) → 2 (delivered)
-//  - 40,60,70,80,90,100 (Exception) → 3 (track_exception)
-func (l *UpsertLogic) convertStatusToTrackStatus(status int32) int32 {
+// mapTrackStatus 状态码映射 → TrackStatus（对标 Ruby tracking_detail.rb:70-89）
+// 参数：
+//   - trackingNumber：运单号（用于查询 overseas_package）
+//   - status：云途状态码（如 10, 20, 50）
+// 返回：
+//   - TrackStatus 值（0=待揽收, 1=运输中, 2=已签收, 3=异常）
+//
+// 映射规则（对标 Ruby tracking_detail.rb:70-89）：
+//   - InfoReceived + overseas_package → 1 (in_transit)
+//   - InfoReceived + NO overseas_package → 0 (to_receive)
+//   - InTransit / InTransit_Arrival → 1 (in_transit)
+//   - Delivered / AvailableForPickup → 2 (delivered)
+//   - Exception / DeliveryFailure / Expired / Exception_Returned / Exception_Cancel → 3 (track_exception)
+//   - 默认 → 0 (to_receive)
+func (l *UpsertLogic) mapTrackStatus(trackingNumber string, status int32) int32 {
 	statusStr := strconv.Itoa(int(status))
 
-	// 状态码映射（对标 Ruby tracking_detail.rb:73-89）
-	switch statusStr {
-	case "0", "10":
-		return 0 // to_receive（待揽收）
-	case "20":
-		return 1 // in_transit（运输中）
-	case "30", "50":
-		return 2 // delivered（已签收）
-	case "40", "60", "70", "80", "90", "100":
-		return 3 // track_exception（异常）
-	default:
-		return 1 // 默认：in_transit（保守策略）
+	// Step 1: 状态码 → 状态文本映射
+	// 对标：Ruby tracking_detail.rb:66-68 (status_txt方法)
+	statusTxt := getStatusText(statusStr)
+
+	// Step 2: InfoReceived 特殊处理（检查 overseas_package）
+	// 对标：Ruby tracking_detail.rb:75-79
+	if statusTxt == "InfoReceived" {
+		hasOverseasPackage, err := l.svcCtx.OverseasPackageDAO.HasOverseasPackage(l.ctx, trackingNumber)
+		if err != nil {
+			l.Logger.Errorf("HasOverseasPackage query failed: %v, fallback to to_receive", err)
+			return 0 // 降级：待揽收
+		}
+
+		if hasOverseasPackage {
+			return 1 // in_transit（海外包裹）
+		}
+		return 0 // to_receive（非海外包裹）
 	}
+
+	// Step 3: 其他状态文本映射
+	// 对标：Ruby tracking_detail.rb:80-88
+	switch statusTxt {
+	case "InTransit", "InTransit_Arrival":
+		return 1 // in_transit
+
+	case "Delivered", "AvailableForPickup":
+		return 2 // delivered
+
+	case "DeliveryFailure", "Exception", "Expired", "Exception_Returned", "Exception_Cancel":
+		return 3 // track_exception
+
+	default:
+		// NotFound / Undefined → to_receive（保守策略）
+		return 0
+	}
+}
+
+// getStatusText 云途状态码 → 状态文本映射
+// 对标：Ruby yun_express_track_formatter.rb:6-19 (STATUS_CODES)
+func getStatusText(statusCode string) string {
+	// 云途状态码映射表（12 项）
+	statusCodes := map[string]string{
+		"0":    "NotFound",
+		"10":   "InfoReceived",
+		"20":   "InTransit",
+		"30":   "AvailableForPickup",
+		"40":   "DeliveryFailure",
+		"50":   "Delivered",
+		"60":   "Exception",
+		"70":   "Expired",
+		"80":   "Exception", // 海关查验（会被改写为 20）
+		"90":   "Exception_Returned",
+		"100":  "Exception_Cancel",
+		"1001": "InTransit_Arrival",
+	}
+
+	if text, ok := statusCodes[statusCode]; ok {
+		return text
+	}
+	return "Undefined"
 }

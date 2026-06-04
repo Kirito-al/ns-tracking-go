@@ -1,0 +1,42 @@
+@{
+  "trackingNumber": "YT2606500704802225",
+  "wayBillNumber": "YT2606500704802225",
+  "trackingStatus": "50",
+  "packageState": "3",
+  "providerName": "云途物流",
+  "providerSite": "https://www.yunexpress.com",
+  "provicerTelephone": "400-888-8888",
+  "countryCode": "US",
+  "originCountryCode": "CN",
+  "trackingNumber2": "",
+  "lastMileCarrierName": "",
+  "createdBy": "2025-05-20T08:00:00Z",
+  "pod": "https://xxx/sign-pic.jpg",
+  "orderTrackingDetails": [
+    {
+      "processDate": "2025-05-20T08:00:00Z",
+      "processLocation": "深圳",
+      "processContent": "快件电子信息已收到",
+      "trackingStatus": "10"
+    },
+    {
+      "processDate": "2025-05-20T10:30:00Z",
+      "processLocation": "深圳集货中心",
+      "processContent": "已揽收",
+      "trackingStatus": "20"
+    },
+    {
+      "processDate": "2025-05-21T14:00:00Z",
+      "processLocation": "美国洛杉矶",
+      "processContent": "到达目的地国家",
+      "trackingStatus": "30"
+    },
+    {
+      "processDate": "2025-05-23T10:20:00Z",
+      "processLocation": "美国纽约",
+      "processContent": "包裹已妥投签收",
+      "trackingStatus": "50",
+      "node": "Delivered"
+    }
+  ]
+}
