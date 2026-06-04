@@ -1,0 +1,58 @@
+syntax = "proto3";
+
+package tracking;
+
+option go_package = "ns-tracking-go/service/tracking/rpc/tracking";
+
+// UpsertRequest 插入或更新追踪数据请求
+message UpsertRequest {
+    string tracking_number = 1;
+    string detail = 2;
+    int32 status = 3;
+    string service_class = 4;
+    int64 synced_at = 5;
+    
+    // tracking_logs 同步字段（时间戳，ISO8601 字符串）
+    string received_at = 6;  // 揽收时间（FIRST_MILE_ARRIVE 节点）
+    string delivered_at = 7; // 签收时间（DELIVERED 节点）
+    string tracked_at = 8;   // 最后轨迹时间（最后一条事件）
+}
+
+// UpsertResponse 插入或更新响应
+message UpsertResponse {
+    bool success = 1;
+    string message = 2;
+}
+
+// GetTrackingRequest 获取追踪数据请求
+message GetTrackingRequest {
+    string tracking_number = 1;
+}
+
+// GetTrackingResponse 获取追踪数据响应
+message GetTrackingResponse {
+    string tracking_number = 1;
+    string detail = 2;
+    int32 status = 3;
+    string service_class = 4;
+    int64 synced_at = 5;
+    string error_message = 6;
+}
+
+// MarkErrorRequest 标记错误请求
+message MarkErrorRequest {
+    string tracking_number = 1;
+    string error_message = 2;
+}
+
+// MarkErrorResponse 标记错误响应
+message MarkErrorResponse {
+    bool success = 1;
+    string message = 2;
+}
+
+service TrackingService {
+    rpc UpsertTracking(UpsertRequest) returns (UpsertResponse);
+    rpc GetTracking(GetTrackingRequest) returns (GetTrackingResponse);
+    rpc MarkError(MarkErrorRequest) returns (MarkErrorResponse);
+}
