@@ -20,10 +20,14 @@ func NewTrackingDAO(db *gorm.DB) *TrackingDAO {
 	return &TrackingDAO{db: db}
 }
 
-// Upsert 插入或更新追踪数据（幂等）- PostgreSQL ON CONFLICT
+// Upsert 插入或更新追踪数据（幂等+并发控制）- PostgreSQL ON CONFLICT
+// 对标：Ruby tracking_detail.rb并发控制逻辑
+// 关键：WHERE auto_delivered_at IS NULL 防止覆盖已签收记录
 func (d *TrackingDAO) Upsert(ctx context.Context, trackingNumber, detail string, status int32, serviceClass string) error {
 	now := time.Now().Unix()
 
+	// 并发控制：只有未签收的记录才更新（防止覆盖Ruby auto_sign的数据）
+	// 技术方案要求：WHERE auto_delivered_at IS NULL
 	err := d.db.WithContext(ctx).Exec(`
 		INSERT INTO tracking_details (tracking_number, detail, status, service_class, synced_at, created_at, updated_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $6)
@@ -34,6 +38,7 @@ func (d *TrackingDAO) Upsert(ctx context.Context, trackingNumber, detail string,
 			service_class = EXCLUDED.service_class,
 			synced_at = EXCLUDED.synced_at,
 			updated_at = EXCLUDED.updated_at
+		WHERE tracking_details.auto_delivered_at IS NULL
 	`, trackingNumber, detail, status, serviceClass, now, now).Error
 
 	if err != nil {
@@ -45,10 +50,11 @@ func (d *TrackingDAO) Upsert(ctx context.Context, trackingNumber, detail string,
 	return nil
 }
 
-// UpsertWithTrackingLogId 插入或更新追踪数据（带 tracking_log_id 关联）
+// UpsertWithTrackingLogId 插入或更新追踪数据（带 tracking_log_id 关联+并发控制）
 func (d *TrackingDAO) UpsertWithTrackingLogId(ctx context.Context, trackingNumber, detail string, status int32, serviceClass string, trackingLogId int64) error {
 	now := time.Now().Unix()
 
+	// 并发控制：只有未签收的记录才更新
 	err := d.db.WithContext(ctx).Exec(`
 		INSERT INTO tracking_details (tracking_number, tracking_log_id, detail, status, service_class, synced_at, created_at, updated_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $7)
@@ -60,19 +66,46 @@ func (d *TrackingDAO) UpsertWithTrackingLogId(ctx context.Context, trackingNumbe
 			service_class = EXCLUDED.service_class,
 			synced_at = EXCLUDED.synced_at,
 			updated_at = EXCLUDED.updated_at
+		WHERE tracking_details.auto_delivered_at IS NULL
 	`, trackingNumber, trackingLogId, detail, status, serviceClass, now, now).Error
 
 	return err
 }
 
-// SyncTrackingLog 同步回写 tracking_log 状态
-func (d *TrackingDAO) SyncTrackingLog(ctx context.Context, trackingNumber string, trackStatus int32, syncedAt int64) error {
+// SyncTrackingLog 同步回写 tracking_log 状态（5个字段同步）
+// 字段：track_status, synced_at, received_at, delivered_at, tracked_at
+func (d *TrackingDAO) SyncTrackingLog(ctx context.Context, trackingNumber string, trackStatus int32, syncedAt int64, receivedAt, deliveredAt, trackedAt string) error {
+	// 转换ISO8601字符串为Unix时间戳（如果不为空）
+	var receivedAtUnix, deliveredAtUnix, trackedAtUnix int64
+	if receivedAt != "" {
+		t, err := time.Parse(time.RFC3339, receivedAt)
+		if err == nil {
+			receivedAtUnix = t.Unix()
+		}
+	}
+	if deliveredAt != "" {
+		t, err := time.Parse(time.RFC3339, deliveredAt)
+		if err == nil {
+			deliveredAtUnix = t.Unix()
+		}
+	}
+	if trackedAt != "" {
+		t, err := time.Parse(time.RFC3339, trackedAt)
+		if err == nil {
+			trackedAtUnix = t.Unix()
+		}
+	}
+
+	// 更新5个字段
 	result := d.db.WithContext(ctx).
 		Model(&model.TrackingLog{}).
 		Where("source_tracking_number = ?", trackingNumber).
 		Updates(map[string]interface{}{
 			"track_status": trackStatus,
 			"synced_at":    syncedAt,
+			"received_at":  receivedAtUnix,
+			"delivered_at": deliveredAtUnix,
+			"tracked_at":   trackedAtUnix,
 		})
 
 	err := result.Error
@@ -81,7 +114,8 @@ func (d *TrackingDAO) SyncTrackingLog(ctx context.Context, trackingNumber string
 		return err
 	}
 
-	logx.Infof("SyncTrackingLog success: %s, affected_rows=%d", trackingNumber, result.RowsAffected)
+	logx.Infof("SyncTrackingLog success: %s, affected_rows=%d, received=%d, delivered=%d, tracked=%d",
+		trackingNumber, result.RowsAffected, receivedAtUnix, deliveredAtUnix, trackedAtUnix)
 	return nil
 }
 

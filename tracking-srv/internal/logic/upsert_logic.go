@@ -1,4 +1,4 @@
-package logic
+﻿package logic
 
 import (
 	"context"
@@ -8,7 +8,7 @@ import (
 	"tracking-srv/internal/event/define"
 	"tracking-srv/internal/queue/tasks"
 	"tracking-srv/internal/svc"
-	"tracking-srv/tracking"
+"tracking-srv/tracking"
 
 	"github.com/hibiken/asynq"
 	"github.com/zeromicro/go-zero/core/logx"
@@ -109,7 +109,8 @@ func (l *UpsertLogic) Upsert(in *tracking.UpsertRequest) (*tracking.UpsertRespon
 		trackStatus := l.mapTrackStatus(in.TrackingNumber, in.Status)
 		syncedAt := in.SyncedAt
 
-		err = l.svcCtx.TrackingDAO.SyncTrackingLog(l.ctx, in.TrackingNumber, trackStatus, syncedAt)
+		// 同步5个字段：track_status, synced_at, received_at, delivered_at, tracked_at
+		err = l.svcCtx.TrackingDAO.SyncTrackingLog(l.ctx, in.TrackingNumber, trackStatus, syncedAt, in.ReceivedAt, in.DeliveredAt, in.TrackedAt)
 		if err != nil {
 			l.Logger.Errorf("Sync tracking_log failed: %v", err)
 			// 同步失败不影响主流程，记录日志即可

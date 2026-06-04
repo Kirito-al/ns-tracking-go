@@ -11,6 +11,11 @@ message UpsertRequest {
     int32 status = 3;
     string service_class = 4;
     int64 synced_at = 5;
+    
+    // tracking_logs 同步字段（时间戳，ISO8601 字符串）
+    string received_at = 6;  // 揽收时间（FIRST_MILE_ARRIVE 节点）
+    string delivered_at = 7; // 签收时间（DELIVERED 节点）
+    string tracked_at = 8;   // 最后轨迹时间（最后一条事件）
 }
 
 // UpsertResponse 插入或更新响应

@@ -1,4 +1,4 @@
-package logic
+package webhook
 
 import (
 	"context"

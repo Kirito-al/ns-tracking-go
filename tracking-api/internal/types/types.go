@@ -40,45 +40,45 @@ type TisPushRequest struct {
 
 // TisPushData TIS Push 数据主体
 type TisPushData struct {
-	TrackingNumber                string              `json:"tracking_number"`                // 轨迹单号
-	WaybillNumber                 string              `json:"waybill_number"`                 // 运单号
-	PackageStatus                 string              `json:"package_status"`                 // 包裹状态 (T=运输中)
-	SignatureUrls                 []string            `json:"SignatureUrls"`                  // 签名 URL 数组
-	IsSignature                   bool                `json:"IsSignature"`                    // 是否已签名
-	IntervalWorkDay               float64             `json:"interval_work_day"`              // 工作日天数
-	ProductCode                   string              `json:"product_code"`                   // 产品代码
-	CustomerOrderNumber           string              `json:"customer_order_number"`          // 客户订单号
-	ProductName                   string              `json:"product_name"`                   // 产品名称
-	DestinationCode               string              `json:"destination_code"`               // 目的地代码
-	IntervalDay                   float64             `json:"interval_day"`                   // 总天数
-	OriginCode                    string              `json:"origin_code"`                    // 始发地代码
-	PodUrls                       []string            `json:"pod_urls"`                       // POD URL 数组
-	CustomerCode                  string              `json:"customer_code"`                  // 客户代码
-	ChannelCode                   string              `json:"channel_code"`                   // 渠道代码
-	CheckInTime                   string              `json:"check_in_time"`                  // 入库时间
-	CheckOutTime                  string              `json:"check_out_time"`                 // 出库时间
-	PickUpTime                    string              `json:"pick_up_time"`                   // 揽收时间
-	LastMileSite                  string              `json:"last_mile_site"`                 // 尾程查询网址
-	EstimatedDeliveryToDateZone   string              `json:"EstimatedDeliveryToDateZone"`    // 预计送达时间（结束）
-	EstimatedDeliveryFromDateZone string              `json:"EstimatedDeliveryFromDateZone"`  // 预计送达时间（开始）
-	PostalCode                    string              `json:"postal_code"`                    // 邮编
-	ActualWeight                  float64             `json:"actual_weight"`                  // 实际重量
-	LastMileName                  string              `json:"last_mile_name"`                 // 尾程承运商名称
-	PhoneNumber                   string              `json:"phone_number"`                   // 联系电话
-	TrackEvents                   []TisTrackEvent     `json:"track_events"`                   // 轨迹事件列表
+	TrackingNumber                string   `json:"tracking_number"`                           // 轨迹单号（必填）
+	WaybillNumber                 string   `json:"waybill_number"`                            // 运单号（必填）
+	PackageStatus                 string   `json:"package_status"`                            // 包裹状态 (T=运输中，必填)
+	SignatureUrls                 []string `json:"SignatureUrls,optional"`                    // 签名 URL 数组（可选）
+	IsSignature                   bool     `json:"IsSignature,optional"`                      // 是否已签名（可选）
+	IntervalWorkDay               *float64 `json:"interval_work_day,optional"`                // 工作日天数（可选）
+	ProductCode                   *string  `json:"product_code,optional"`                     // 产品代码（可选）
+	CustomerOrderNumber           *string  `json:"customer_order_number,optional"`            // 客户订单号（可选）
+	ProductName                   *string  `json:"product_name,optional"`                     // 产品名称（可选）
+	DestinationCode               *string  `json:"destination_code,optional"`                 // 目的地代码（可选）
+	IntervalDay                   *float64 `json:"interval_day,optional"`                     // 总天数（可选）
+	OriginCode                    *string  `json:"origin_code,optional"`                      // 始发地代码（可选）
+	PodUrls                       []string `json:"pod_urls,optional"`                         // POD URL 数组（可选）
+	CustomerCode                  *string  `json:"customer_code,optional"`                    // 客户代码（可选）
+	ChannelCode                   *string  `json:"channel_code,optional"`                     // 渠道代码（可选）
+	CheckInTime                   *string  `json:"check_in_time,optional"`                    // 入库时间（可选）
+	CheckOutTime                  *string  `json:"check_out_time,optional"`                   // 出库时间（可选）
+	PickUpTime                    *string  `json:"pick_up_time,optional"`                     // 揽收时间（可选）
+	LastMileSite                  *string  `json:"last_mile_site,optional"`                   // 尾程查询网址（可选）
+	EstimatedDeliveryToDateZone   *string  `json:"EstimatedDeliveryToDateZone,optional"`      // 预计送达时间（结束，可选）
+	EstimatedDeliveryFromDateZone *string  `json:"EstimatedDeliveryFromDateZone,optional"`    // 预计送达时间（开始，可选）
+	PostalCode                    *string  `json:"postal_code,optional"`                      // 邮编（可选）
+	ActualWeight                  *float64 `json:"actual_weight,optional"`                    // 实际重量（可选）
+	LastMileName                  *string  `json:"last_mile_name,optional"`                   // 尾程承运商名称（可选）
+	PhoneNumber                   *string  `json:"phone_number,optional"`                     // 联系电话（可选）
+	TrackEvents                   []TisTrackEvent     `json:"track_events"`                   // 轨迹事件列表（必填）
 }
 
 // TisTrackEvent TIS 轨迹事件
 type TisTrackEvent struct {
-	TrackNodeDescription string `json:"track_node_description"` // 轨迹节点描述
-	ProcessUTCTime       string `json:"process_utc_time"`       // UTC 时间
-	TrackNodeCode        string `json:"track_node_code"`        // 轨迹节点代码
-	ProcessTime          string `json:"process_time"`           // 当地时间
-	ProcessCity          string `json:"process_city"`           // 城市
-	ProcessCountry       string `json:"process_country"`        // 国家
-	ProcessLocation      string `json:"process_location"`       // 地点
-	ProcessProvince      string `json:"process_province"`       // 省份
-	PodURL               string `json:"pod_url"`                // POD 链接
+	TrackNodeDescription string  `json:"track_node_description"`           // 轨迹节点描述（必填）
+	ProcessUTCTime       string  `json:"process_utc_time"`                 // UTC 时间（必填）
+	TrackNodeCode        string  `json:"track_node_code"`                  // 轨迹节点代码（必填）
+	ProcessTime          string  `json:"process_time"`                     // 当地时间（必填）
+	ProcessCity          *string `json:"process_city,optional"`            // 城市（可选）
+	ProcessCountry       *string `json:"process_country,optional"`         // 国家（可选）
+	ProcessLocation      *string `json:"process_location,optional"`        // 地点（可选）
+	ProcessProvince      *string `json:"process_province,optional"`        // 省份（可选）
+	PodURL               *string `json:"pod_url,optional"`                 // POD 链接（可选）
 }
 
 // WebhookResponse Webhook 响应结构

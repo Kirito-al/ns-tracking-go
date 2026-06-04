@@ -3,7 +3,8 @@ package handler
 import (
 	"net/http"
 
-	webhookLogic "tracking-api/internal/logic/webhook"
+	"tracking-api/internal/logic/webhook"
+	"tracking-api/internal/normalize"
 	"tracking-api/internal/svc"
 	"tracking-api/internal/types"
 
@@ -12,6 +13,7 @@ import (
 
 // TisPushHandler TIS Push Data 处理器
 // 对标：真实业务中的 tisPushData 格式（snake_case，带 data 包装层）
+// 关键：TIS Push 不走签名验证，调用独立的 TisPushLogic
 func TisPushHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// 1. 解析请求（TIS Push 格式）
@@ -31,18 +33,15 @@ func TisPushHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
 			return
 		}
 
-		// 3. 转换为 WebhookRequest（复用现有 YunExpressFormatter 逻辑）
-		webhookReq := convertTisToWebhook(req.Data)
-
-		// 4. 调用 WebhookLogic 处理
-		l := webhookLogic.NewWebhookLogic(r.Context(), svcCtx)
-		resp, err := l.Webhook(webhookReq, "normal")
+		// 3. 调用独立的 TisPushLogic（不走签名验证）
+		l := webhook.NewTisPushLogic(r.Context(), svcCtx)
+		resp, err := l.TisPush(&req)
 		if err != nil {
 			httpx.ErrorCtx(r.Context(), w, err)
 			return
 		}
 
-		// 5. 返回响应
+		// 4. 返回响应
 		httpx.OkJsonCtx(r.Context(), w, resp)
 	}
 }
@@ -52,9 +51,15 @@ func convertTisToWebhook(tisData *types.TisPushData) *types.WebhookRequest {
 	// 转换 track_events → orderTrackingDetails
 	details := make([]types.TrackingDetail, len(tisData.TrackEvents))
 	for i, evt := range tisData.TrackEvents {
+		// 处理可选指针字段
+		processLocation := ""
+		if evt.ProcessLocation != nil {
+			processLocation = *evt.ProcessLocation
+		}
+
 		details[i] = types.TrackingDetail{
 			ProcessDate:     evt.ProcessTime,       // 用当地时间
-			ProcessLocation: evt.ProcessLocation,
+			ProcessLocation: processLocation,       // 地点（处理指针）
 			ProcessContent:  evt.TrackNodeDescription, // 描述作为内容
 			TrackingStatus:  getEventStatus(evt.TrackNodeCode), // 根据节点代码推断状态
 		}
@@ -69,6 +74,27 @@ func convertTisToWebhook(tisData *types.TisPushData) *types.WebhookRequest {
 	// 映射 package_status → packageState
 	packageState := mapPackageState(tisData.PackageStatus)
 
+	// 处理可选指针字段
+	destinationCode := ""
+	if tisData.DestinationCode != nil {
+		destinationCode = *tisData.DestinationCode
+	}
+
+	originCode := ""
+	if tisData.OriginCode != nil {
+		originCode = *tisData.OriginCode
+	}
+
+	lastMileName := ""
+	if tisData.LastMileName != nil {
+		lastMileName = *tisData.LastMileName
+	}
+
+	checkInTime := ""
+	if tisData.CheckInTime != nil {
+		checkInTime = *tisData.CheckInTime
+	}
+
 	return &types.WebhookRequest{
 		TrackingNumber:       tisData.TrackingNumber,
 		WayBillNumber:        tisData.WaybillNumber,
@@ -76,26 +102,17 @@ func convertTisToWebhook(tisData *types.TisPushData) *types.WebhookRequest {
 		PackageState:         packageState,
 		OrderTrackingDetails: details,
 		ProviderName:         "TIS",
-		CountryCode:          tisData.DestinationCode,
-		OriginCountryCode:    tisData.OriginCode,
-		LastMileCarrierName:  tisData.LastMileName,
-		CreatedBy:            tisData.CheckInTime,
+		CountryCode:          destinationCode,      // 处理指针
+		OriginCountryCode:    originCode,           // 处理指针
+		LastMileCarrierName:  lastMileName,         // 处理指针
+		CreatedBy:            checkInTime,          // 处理指针
 	}
 }
 
 // getEventStatus 根据节点代码推断状态码
+// 使用完整的39个节点映射表
 func getEventStatus(nodeCode string) string {
-	// 简单映射（实际可能需要更复杂的逻辑）
-	switch {
-	case nodeCode == "YB/XD":
-		return "10" // InfoReceived
-	case nodeCode == "XD/ZC", nodeCode == "XD/CS":
-		return "20" // InTransit (揽收/发出)
-	case nodeCode == "MD/DD", nodeCode == "MD/TT":
-		return "50" // Delivered (到达/投递)
-	default:
-		return "20" // 默认运输中
-	}
+	return normalize.MapNodeCode(nodeCode)
 }
 
 // mapPackageState 映射 TIS package_status → packageState

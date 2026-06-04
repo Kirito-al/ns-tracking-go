@@ -1,0 +1,67 @@
+{
+  "data": {
+    "package_status": "T",
+    "SignatureUrls": [],
+    "IsSignature": false,
+    "interval_work_day": 3.0,
+    "product_code": "MUZXR",
+    "customer_order_number": "BG260530152213025990",
+    "product_name": "云途全球化妆品类专线挂号",
+    "destination_code": "NL",
+    "interval_day": 3.0,
+    "origin_code": "CN",
+    "pod_urls": [],
+    "waybill_number": "YT2615000705163221",
+    "tracking_number": "3SWLT0037525480",
+    "track_events": [
+      {
+        "track_node_description": "Shipment information received",
+        "process_utc_time": "2025-05-30T08:00:00Z",
+        "track_node_code": "YB/XD",
+        "process_time": "2025-05-30T16:00:00Z"
+      },
+      {
+        "process_city": "深圳",
+        "process_country": "CN",
+        "process_location": "深圳集货中心",
+        "process_province": "广东",
+        "track_node_description": "已揽收",
+        "process_utc_time": "2025-05-30T12:30:00Z",
+        "track_node_code": "XD/ZC",
+        "process_time": "2025-05-30T20:30:00Z"
+      },
+      {
+        "process_city": "洛杉矶",
+        "process_country": "US",
+        "process_location": "洛杉矶转运中心",
+        "track_node_description": "到达目的地国家",
+        "process_utc_time": "2025-06-01T06:00:00Z",
+        "track_node_code": "MD/DD",
+        "process_time": "2025-06-01T14:00:00Z"
+      },
+      {
+        "process_city": "鹿特丹",
+        "process_country": "NL",
+        "process_location": "鹿特丹邮局",
+        "track_node_description": "已交付",
+        "process_utc_time": "2025-06-02T08:40:28Z",
+        "track_node_code": "MD/TT",
+        "process_time": "2025-06-02T16:40:28Z",
+        "pod_url": "https://example.com/pod/yt2615000705163221.jpg"
+      }
+    ],
+    "customer_code": "CNHC318962",
+    "channel_code": "NLDHL",
+    "check_in_time": "2025-06-02T07:15:23Z",
+    "check_out_time": "2025-06-02T08:40:28Z",
+    "pick_up_time": "0001-01-01T00:00:00Z",
+    "last_mile_site": "https://www.postnl.nl/en/track-trace/3SWLT0037525480",
+    "EstimatedDeliveryToDateZone": "",
+    "EstimatedDeliveryFromDateZone": "",
+    "postal_code": "",
+    "actual_weight": 0.36,
+    "last_mile_name": "PostNL",
+    "phone_number": "+31 883454399"
+  },
+  "data_code": "tisPushData"
+}

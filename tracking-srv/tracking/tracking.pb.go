@@ -29,8 +29,12 @@ type UpsertRequest struct {
 	Status         int32                  `protobuf:"varint,3,opt,name=status,proto3" json:"status,omitempty"`
 	ServiceClass   string                 `protobuf:"bytes,4,opt,name=service_class,json=serviceClass,proto3" json:"service_class,omitempty"`
 	SyncedAt       int64                  `protobuf:"varint,5,opt,name=synced_at,json=syncedAt,proto3" json:"synced_at,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	// tracking_logs 同步字段（时间戳，ISO8601 字符串）
+	ReceivedAt    string `protobuf:"bytes,6,opt,name=received_at,json=receivedAt,proto3" json:"received_at,omitempty"`    // 揽收时间（FIRST_MILE_ARRIVE 节点）
+	DeliveredAt   string `protobuf:"bytes,7,opt,name=delivered_at,json=deliveredAt,proto3" json:"delivered_at,omitempty"` // 签收时间（DELIVERED 节点）
+	TrackedAt     string `protobuf:"bytes,8,opt,name=tracked_at,json=trackedAt,proto3" json:"tracked_at,omitempty"`       // 最后轨迹时间（最后一条事件）
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *UpsertRequest) Reset() {
@@ -96,6 +100,27 @@ func (x *UpsertRequest) GetSyncedAt() int64 {
 		return x.SyncedAt
 	}
 	return 0
+}
+
+func (x *UpsertRequest) GetReceivedAt() string {
+	if x != nil {
+		return x.ReceivedAt
+	}
+	return ""
+}
+
+func (x *UpsertRequest) GetDeliveredAt() string {
+	if x != nil {
+		return x.DeliveredAt
+	}
+	return ""
+}
+
+func (x *UpsertRequest) GetTrackedAt() string {
+	if x != nil {
+		return x.TrackedAt
+	}
+	return ""
 }
 
 // UpsertResponse 插入或更新响应
@@ -391,13 +416,18 @@ var File_tracking_proto protoreflect.FileDescriptor
 
 const file_tracking_proto_rawDesc = "" +
 	"\n" +
-	"\x0etracking.proto\x12\btracking\"\xaa\x01\n" +
+	"\x0etracking.proto\x12\btracking\"\x8d\x02\n" +
 	"\rUpsertRequest\x12'\n" +
 	"\x0ftracking_number\x18\x01 \x01(\tR\x0etrackingNumber\x12\x16\n" +
 	"\x06detail\x18\x02 \x01(\tR\x06detail\x12\x16\n" +
 	"\x06status\x18\x03 \x01(\x05R\x06status\x12#\n" +
 	"\rservice_class\x18\x04 \x01(\tR\fserviceClass\x12\x1b\n" +
-	"\tsynced_at\x18\x05 \x01(\x03R\bsyncedAt\"D\n" +
+	"\tsynced_at\x18\x05 \x01(\x03R\bsyncedAt\x12\x1f\n" +
+	"\vreceived_at\x18\x06 \x01(\tR\n" +
+	"receivedAt\x12!\n" +
+	"\fdelivered_at\x18\a \x01(\tR\vdeliveredAt\x12\x1d\n" +
+	"\n" +
+	"tracked_at\x18\b \x01(\tR\ttrackedAt\"D\n" +
 	"\x0eUpsertResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x18\n" +
 	"\amessage\x18\x02 \x01(\tR\amessage\"=\n" +

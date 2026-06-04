@@ -1,4 +1,4 @@
-package main
+﻿package main
 
 import (
 	"flag"
@@ -9,7 +9,7 @@ import (
 	"tracking-srv/internal/event/dispatcher"
 	"tracking-srv/internal/server"
 	"tracking-srv/internal/svc"
-	"tracking-srv/tracking"
+"tracking-srv/tracking"
 
 	"github.com/zeromicro/go-zero/core/conf"
 	"github.com/zeromicro/go-zero/zrpc"
