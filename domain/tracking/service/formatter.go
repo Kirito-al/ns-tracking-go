@@ -44,6 +44,12 @@ func (f *YunExpressFormatter) Format() *TrackingDetailDTO {
 				WayBillNumber:        extractStringField(f.raw, "WayBillNumber"),
 				TrackingStatus:       latestStatus,
 				PackageState:         packageState,
+				ProviderName:         extractStringField(f.raw, "ProviderName"),
+				ProviderTelephone:    extractStringField(f.raw, "ProviderTelephone"),
+				ProviderSite:         extractStringField(f.raw, "ProviderSite"),
+				CountryCode:          extractStringField(f.raw, "CountryCode"),
+				OriginCountryCode:    extractStringField(f.raw, "OriginCountryCode"),
+				LastMileCarrierName:  extractStringField(f.raw, "LastMileCarrierName"),
 				OrderTrackingDetails: orderTrackingDetails,
 			},
 		},
@@ -104,6 +110,11 @@ type TrackingItemDTO struct {
 	WayBillNumber        string                 `json:"WayBillNumber"`
 	CarrierName          string                 `json:"CarrierName,omitempty"`
 	ProviderName         string                 `json:"ProviderName,omitempty"`
+	ProviderTelephone    string                 `json:"ProviderTelephone,omitempty"` // 注意：字段名拼写修正
+	ProviderSite         string                 `json:"ProviderSite,omitempty"`
+	CountryCode          string                 `json:"CountryCode,omitempty"`
+	OriginCountryCode    string                 `json:"OriginCountryCode,omitempty"`
+	LastMileCarrierName  string                 `json:"LastMileCarrierName,omitempty"`
 	TrackingStatus       string                 `json:"TrackingStatus"`
 	PackageState         string                 `json:"PackageState"`
 	OrderTrackingDetails []TrackingDetailDTOItem `json:"OrderTrackingDetails,omitempty"`
@@ -121,7 +132,10 @@ type TrackingDetailDTOItem struct {
 }
 
 // ToJSON 转换为JSON字符串（用于存入JSONB字段）
-func (dto *TrackingDetailDTO) ToJSON() string {
-	bytes, _ := json.Marshal(dto)
-	return string(bytes)
+func (dto *TrackingDetailDTO) ToJSON() (string, error) {
+	bytes, err := json.Marshal(dto)
+	if err != nil {
+		return "", err
+	}
+	return string(bytes), nil
 }

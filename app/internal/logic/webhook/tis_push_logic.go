@@ -4,13 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"strconv"
+	"time"
 
-	"ns-tracking-go/domain/tracking/service"
 	"ns-tracking-go/app/internal/svc"
 	"ns-tracking-go/app/internal/types"
+	"ns-tracking-go/domain/tracking/entity"
+	"ns-tracking-go/domain/tracking/service"
 
 	"github.com/zeromicro/go-zero/core/logx"
-	"ns-tracking-go/domain/tracking/entity"
 )
 
 // TisPushLogic TIS Push 处理逻辑
@@ -38,7 +39,7 @@ func (l *TisPushLogic) TisPush(tisData *types.TisPushData) (*types.Response, err
 	webhookReq := l.convertTisToWebhook(tisData)
 
 	// 2. 提取时间戳（用于 tracking_logs 同步）
-	// 提取时间戳（暂不使用）
+	receivedAt, deliveredAt, trackedAt := l.extractTimestamps(tisData.TrackEvents)
 
 	// 3. 格式化数据（复用 YunExpressFormatter）
 	raw := l.convertWebhookRequestToMap(webhookReq)
@@ -74,7 +75,7 @@ func (l *TisPushLogic) TisPush(tisData *types.TisPushData) (*types.Response, err
 	err = l.svcCtx.TrackingRepo.Save(l.ctx, detail)
 	if err != nil {
 		// 记录详细错误日志（内部调试）
-		l.Logger.Errorf("gRPC Upsert failed: %v", err)
+		l.Logger.Errorf("Upsert failed: %v", err)
 		
 		// 返回通用错误（防止内部信息泄露）
 		return &types.Response{
@@ -84,7 +85,25 @@ func (l *TisPushLogic) TisPush(tisData *types.TisPushData) (*types.Response, err
 		}, nil
 	}
 
-	// 6. 返回成功响应
+	// 7. 同步 tracking_logs 时间戳字段（received_at, delivered_at, tracked_at）
+	// 使用 TrackingLogService 计算 track_status
+	trackStatus := l.svcCtx.TrackingLogService.MapTrackStatus(l.ctx, int32(statusCode), webhookReq.WayBillNumber)
+	
+	err = l.svcCtx.TrackingRepo.SyncTrackingLog(
+		l.ctx,
+		webhookReq.WayBillNumber,
+		trackStatus,
+		time.Now().Unix(),
+		receivedAt,
+		deliveredAt,
+		trackedAt,
+	)
+	if err != nil {
+		l.Logger.Errorf("SyncTrackingLog failed: %v", err)
+		// 不返回错误给客户端（入库已成功）
+	}
+
+	// 8. 返回成功响应
 	return &types.Response{
 		Code:    200,
 		Message: "success",

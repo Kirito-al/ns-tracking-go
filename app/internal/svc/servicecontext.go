@@ -41,15 +41,18 @@ func NewServiceContext(c config.Config) *ServiceContext {
 		panic(err)
 	}
 
+	// 复用 OverseasPackageRepoImpl 实例（避免重复创建）
+	overseasPkgRepo := database.NewOverseasPackageRepoImpl(db)
+
 	return &ServiceContext{
 		Config: c,
 		Redis:  rds,
 		DB:     db.DB,
 		TrackingService: service.NewYunExpressFormatter(nil),
-		TrackingLogService: service.NewTrackingLogService(database.NewOverseasPackageRepoImpl(db)),
+		TrackingLogService: service.NewTrackingLogService(overseasPkgRepo),
 		TrackingRepo: database.NewTrackingRepoImpl(db),
 		TrackingLogRepo: database.NewTrackingLogRepoImpl(db),
-		OverseasPackageRepo: database.NewOverseasPackageRepoImpl(db),
+		OverseasPackageRepo: overseasPkgRepo,
 		TrackingCache: cache.NewTrackingCache(rds),
 	}
 }
