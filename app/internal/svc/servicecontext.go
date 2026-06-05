@@ -17,7 +17,8 @@ type ServiceContext struct {
 	DB     *gorm.DB
 
 	// 领域服务
-	TrackingService *service.YunExpressFormatter
+	TrackingService    *service.YunExpressFormatter
+	TrackingLogService *service.TrackingLogService
 
 	// 仓储实现
 	TrackingRepo     *database.TrackingRepoImpl
@@ -45,6 +46,7 @@ func NewServiceContext(c config.Config) *ServiceContext {
 		Redis:  rds,
 		DB:     db.DB,
 		TrackingService: service.NewYunExpressFormatter(nil),
+		TrackingLogService: service.NewTrackingLogService(database.NewOverseasPackageRepoImpl(db)),
 		TrackingRepo: database.NewTrackingRepoImpl(db),
 		TrackingLogRepo: database.NewTrackingLogRepoImpl(db),
 		OverseasPackageRepo: database.NewOverseasPackageRepoImpl(db),

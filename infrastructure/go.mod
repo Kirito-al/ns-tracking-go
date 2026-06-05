@@ -4,6 +4,8 @@ go 1.24.0
 
 require (
 	github.com/zeromicro/go-zero v1.10.2
+	gorm.io/driver/postgres v1.6.0
+	gorm.io/gorm v1.31.1
 	ns-tracking-go/domain/tracking v0.0.0
 	ns-tracking-go/pkg v0.0.0
 )
@@ -58,8 +60,6 @@ require (
 	google.golang.org/grpc v1.80.0 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
-	gorm.io/driver/postgres v1.6.0 // indirect
-	gorm.io/gorm v1.31.1 // indirect
 )
 
 replace (

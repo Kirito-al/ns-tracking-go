@@ -32,7 +32,7 @@ func NewTrackingLogService(overseasPackageRepo repo.OverseasPackageRepo) *Tracki
 //   - Delivered / AvailableForPickup → 2 (delivered)
 //   - Exception / DeliveryFailure / Expired / Exception_Returned / Exception_Cancel → 3 (track_exception)
 //   - 默认 → 0 (to_receive)
-func (s *TrackingLogService) MapTrackStatus(status int32, trackingNumber string) int32 {
+func (s *TrackingLogService) MapTrackStatus(ctx context.Context, status int32, trackingNumber string) int32 {
 	statusStr := strconv.Itoa(int(status))
 
 	// Step 1: 状态码 → 状态文本映射
@@ -44,7 +44,7 @@ func (s *TrackingLogService) MapTrackStatus(status int32, trackingNumber string)
 	case "InfoReceived":
 		// 检查 overseas_package（修复 P0 问题）
 		// 修复：传入 ctx 参数
-		hasOverseasPackage, err := s.overseasPackageRepo.HasOverseasPackage(context.Background(), trackingNumber)
+		hasOverseasPackage, err := s.overseasPackageRepo.HasOverseasPackage(ctx, trackingNumber)
 		if err != nil {
 			// 错误时保守策略：默认待揽收
 			return 0

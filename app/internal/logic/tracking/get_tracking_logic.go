@@ -6,6 +6,7 @@ import (
 
 	"ns-tracking-go/app/internal/svc"
 	"ns-tracking-go/app/internal/types"
+	"ns-tracking-go/pkg/errorx"
 
 	"github.com/zeromicro/go-zero/core/logx"
 )
@@ -29,18 +30,20 @@ func (l *GetTrackingLogic) GetTracking(req *types.GetTrackingRequest) (resp *typ
 	detail, err := l.svcCtx.TrackingRepo.FindByTrackingNumber(l.ctx, req.TrackingNumber)
 	if err != nil {
 		l.Logger.Errorf("Query failed: %v", err)
+		errObj := errorx.NewError(errorx.DatabaseQueryFailed)
 		return &types.Response{
-			Code:    500,
-			Message: "查询失败",
+			Code:    errObj.GetCode(),
+			Message: errObj.Message,
 			Data:    nil,
 		}, nil
 	}
 
 	// 数据不存在
 	if detail == nil {
+		errObj := errorx.NewError(errorx.TrackingNotFound)
 		return &types.Response{
-			Code:    404,
-			Message: "运单不存在",
+			Code:    errObj.GetCode(),
+			Message: errObj.Message,
 			Data:    nil,
 		}, nil
 	}
@@ -48,9 +51,10 @@ func (l *GetTrackingLogic) GetTracking(req *types.GetTrackingRequest) (resp *typ
 	// 解析 JSON
 	var detailDTO types.TrackingDetailDTO
 	if err := json.Unmarshal([]byte(detail.Detail), &detailDTO); err != nil {
+		errObj := errorx.NewError(errorx.FormatError)
 		return &types.Response{
-			Code:    500,
-			Message: "解析失败",
+			Code:    errObj.GetCode(),
+			Message: errObj.Message,
 			Data:    nil,
 		}, nil
 	}

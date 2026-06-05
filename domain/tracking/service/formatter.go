@@ -51,7 +51,7 @@ func (f *YunExpressFormatter) Format() *TrackingDetailDTO {
 	}
 }
 
-// extractOrderTrackingDetails 提取轨迹明细列表（简化版）
+// extractOrderTrackingDetails 提取轨迹明细列表（完整版）
 func (f *YunExpressFormatter) extractOrderTrackingDetails() []TrackingDetailDTOItem {
 	// 从 raw 中提取 OrderTrackingDetails
 	if details, ok := f.raw["OrderTrackingDetails"]; ok {
@@ -60,10 +60,13 @@ func (f *YunExpressFormatter) extractOrderTrackingDetails() []TrackingDetailDTOI
 			for i, detail := range detailsArray {
 				if detailMap, ok := detail.(map[string]interface{}); ok {
 					items[i] = TrackingDetailDTOItem{
-						ProcessDate:     extractStringField(detailMap, "ProcessDate"),
-						ProcessLocation: extractStringField(detailMap, "ProcessLocation"),
-						ProcessContent:  extractStringField(detailMap, "ProcessContent"),
-						TrackingStatus:  extractStringField(detailMap, "TrackingStatus"),
+						ProcessDate:          extractStringField(detailMap, "ProcessDate"),
+						ProcessLocation:      extractStringField(detailMap, "ProcessLocation"),
+						ProcessContent:       extractStringField(detailMap, "ProcessContent"),
+						TrackingStatus:       extractStringField(detailMap, "TrackingStatus"),
+						TrackNodeCode:        extractStringField(detailMap, "TrackNodeCode"),
+						TrackCodeDescription: extractStringField(detailMap, "TrackCodeDescription"),
+						ProcessTimezone:      extractStringField(detailMap, "ProcessTimezone"),
 					}
 				}
 			}
@@ -108,10 +111,13 @@ type TrackingItemDTO struct {
 
 // TrackingDetailDTOItem 轨迹明细项
 type TrackingDetailDTOItem struct {
-	ProcessDate     string `json:"ProcessDate"`
-	ProcessLocation string `json:"ProcessLocation"`
-	ProcessContent  string `json:"ProcessContent"`
-	TrackingStatus  string `json:"TrackingStatus"`
+	ProcessDate         string `json:"ProcessDate"`
+	ProcessLocation     string `json:"ProcessLocation"`
+	ProcessContent      string `json:"ProcessContent"`
+	TrackingStatus      string `json:"TrackingStatus"`
+	TrackNodeCode       string `json:"TrackNodeCode,omitempty"`       // 节点代码（对标 Ruby）
+	TrackCodeDescription string `json:"TrackCodeDescription,omitempty"` // 节点描述（对标 Ruby）
+	ProcessTimezone     string `json:"ProcessTimezone,omitempty"`     // 时区信息（对标 Ruby）
 }
 
 // ToJSON 转换为JSON字符串（用于存入JSONB字段）
