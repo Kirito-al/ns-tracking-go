@@ -131,6 +131,44 @@ CREATE TABLE IF NOT EXISTS tracking_replaces (
 COMMENT ON TABLE tracking_replaces IS '假轨迹生成配置表（用于缩短轨迹、数据回滚）';
 COMMENT ON COLUMN tracking_replaces.first_start_at IS '首轨迹点起始时间（Unix timestamp）';
 
+-- 5. webhook_request_logs（Webhook请求日志表）
+-- 用途：两阶段写入，记录Webhook请求的完整信息（替代raw_events的追溯性）
+-- 技术方案参考：tms-talk/app/services/logistics/webhook_request_logs.py
+CREATE TABLE IF NOT EXISTS webhook_request_logs (
+    id SERIAL PRIMARY KEY,
+    
+    -- 基础信息
+    provider_code VARCHAR(50),                 -- 服务商代码（如：yunexpress）
+    tracking_number VARCHAR(255),               -- 运单号（可能多条轨迹）
+    idempotency_key VARCHAR(64),                -- 幂等key（SHA256前16字节）
+    
+    -- 请求信息（两阶段写入：接收时记录）
+    headers JSONB,                              -- 请求头（JSON格式）
+    raw_body TEXT,                              -- 原始请求体（完整payload）
+    client_ip VARCHAR(50),                      -- 客户端IP（云途推送服务器）
+    
+    -- 处理状态（两阶段写入：处理完成后更新）
+    status VARCHAR(20) DEFAULT 'received',      -- 状态：received/processing/success/failed
+    error TEXT,                                 -- 错误信息（失败时记录）
+    response TEXT,                              -- 响应内容（成功时记录）
+    
+    -- 时间戳
+    created_at BIGINT NOT NULL,                 -- 创建时间（接收请求时，Unix timestamp）
+    updated_at BIGINT NOT NULL                  -- 更新时间（处理完成时，Unix timestamp）
+);
+
+-- webhook_request_logs 索引
+CREATE INDEX IF NOT EXISTS idx_provider_code ON webhook_request_logs(provider_code);
+CREATE INDEX IF NOT EXISTS idx_tracking_number_webhook ON webhook_request_logs(tracking_number);
+CREATE INDEX IF NOT EXISTS idx_idempotency_key ON webhook_request_logs(idempotency_key);
+CREATE INDEX IF NOT EXISTS idx_status_webhook ON webhook_request_logs(status);
+CREATE INDEX IF NOT EXISTS idx_created_at_webhook ON webhook_request_logs(created_at);
+
+COMMENT ON TABLE webhook_request_logs IS 'Webhook请求日志表（两阶段写入：接收时记录请求信息，处理完成后更新状态）';
+COMMENT ON COLUMN webhook_request_logs.idempotency_key IS '幂等key（用于去重重复推送）';
+COMMENT ON COLUMN webhook_request_logs.status IS '处理状态：received（接收）→ processing（处理中）→ success（成功）/ failed（失败）';
+COMMENT ON COLUMN webhook_request_logs.raw_body IS '原始请求体（完整payload，用于问题排查）';
+
 -- ========================================
 -- 测试数据（模拟真实业务场景）
 -- ========================================

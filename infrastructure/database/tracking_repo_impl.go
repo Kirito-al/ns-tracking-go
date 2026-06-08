@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"ns-tracking-go/domain/tracking/entity"
+	"ns-tracking-go/infrastructure/cache"
 	"ns-tracking-go/pkg/toolx"
 
 	"github.com/zeromicro/go-zero/core/logx"
@@ -14,16 +15,21 @@ import (
 // TrackingRepoImpl 轨迹仓储实现（基础设施层）
 // 对标：demo1-gozero service/tracking/rpc/internal/dao/tracking_dao.go
 type TrackingRepoImpl struct {
-	db *DB
+	db    *DB
+	cache *cache.TrackingCache // ← 新增：Redis缓存依赖
 }
 
-func NewTrackingRepoImpl(db *DB) *TrackingRepoImpl {
-	return &TrackingRepoImpl{db: db}
+func NewTrackingRepoImpl(db *DB, trackingCache *cache.TrackingCache) *TrackingRepoImpl {
+	return &TrackingRepoImpl{
+		db:    db,
+		cache: trackingCache, // ← 新增：注入缓存依赖
+	}
 }
 
 // Save Upsert插入或更新追踪数据（幂等+并发控制）
 // 对标：demo1-gozero tracking_dao.go:28-53 (Upsert方法)
 // 关键：WHERE auto_delivered_at IS NULL 防止覆盖已签收记录
+// Redis缓存：Upsert成功后同步写入Redis（TTL=4小时）
 func (r *TrackingRepoImpl) Save(ctx context.Context, detail *entity.TrackingDetail) error {
 	now := time.Now().Unix()
 
@@ -48,6 +54,29 @@ func (r *TrackingRepoImpl) Save(ctx context.Context, detail *entity.TrackingDeta
 	}
 
 	logx.Infof("Upsert success: %s, status=%d", toolx.MaskTrackingNumber(detail.TrackingNumber), detail.Status)
+
+	// ===== Redis缓存写入（Upsert成功后同步写入） =====
+	if r.cache != nil {
+		// 构建缓存DTO
+		cacheDTO := &cache.TrackingDetailDTO{
+			TrackingNumber: detail.TrackingNumber,
+			Detail:         detail.Detail,
+			Status:         detail.Status,
+			ServiceClass:   detail.ServiceClass,
+			SyncedAt:       now,
+			CachedAt:       now,
+		}
+
+		// 写入Redis（TTL=4小时，对标Ruby CACHE_HOURS）
+		err = r.cache.Set(ctx, detail.TrackingNumber, cacheDTO)
+		if err != nil {
+			logx.Errorf("Redis cache write failed: %s, err=%v", toolx.MaskTrackingNumber(detail.TrackingNumber), err)
+			// 缓存写入失败不影响主流程（降级策略）
+		} else {
+			logx.Infof("Redis cache updated: %s, TTL=4h", toolx.MaskTrackingNumber(detail.TrackingNumber))
+		}
+	}
+
 	return nil
 }
 

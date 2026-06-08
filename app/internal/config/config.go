@@ -1,27 +1,47 @@
 ﻿package config
 
-import "github.com/zeromicro/go-zero/rest"
+import (
+	"os"
+	"gopkg.in/yaml.v2"
+)
 
 type Config struct {
-	rest.RestConf
+	Name string `yaml:"name"`
+	Host string `yaml:"host"`
+	Port int    `yaml:"port"`
 
-	DataSource string `yaml:"DataSource"` // PostgreSQL 连接字符串
-	RedisConf struct {
-		Host string `yaml:"Host"`
-		Pass string `yaml:"Pass"`
-		Db   int    `yaml:"Db"`
-	} `yaml:"RedisConf"`
+	DataSource string `yaml:"datasource"`
 
-	YunExpressWebhookSecret      string `yaml:"YunExpressWebhookSecret"`
-	GEYunExpressWebhookSecret    string `yaml:"GEYunExpressWebhookSecret"`
-	YunExpressSkipSignature      bool   `yaml:"YunExpressSkipSignature"`
+	RedisHost string `yaml:"redis_host"`
+	RedisPass string `yaml:"redis_pass"`
+	RedisType string `yaml:"redis_type"`
 
-	// 业务配置
-	ProviderName string `yaml:"ProviderName"` // 服务商名称（如：云途物流）
-	ServiceClass string `yaml:"ServiceClass"` // 服务类型（如：YunExpressService）
+	// Asynq配置（Worker队列）
+	AsynqRedisHost    string `yaml:"asynq_redis_host"`     // ← 新增：Asynq Redis地址（默认与缓存Redis相同）
+	AsynqRedisPass    string `yaml:"asynq_redis_pass"`     // ← 新增：Asynq Redis密码
+	AsynqRedisDB      int    `yaml:"asynq_redis_db"`       // ← 新增：Asynq Redis DB（默认=1，与缓存隔离）
+	AsynqConcurrency  int    `yaml:"asynq_concurrency"`    // ← 新增：Worker并发数（默认=10）
 
-	CORS struct {
-		AllowedOrigins []string `yaml:"AllowedOrigins"`
-		AllowedMethods []string `yaml:"AllowedMethods"`
-	} `yaml:"CORS"`
+	YunExpressWebhookSecret   string `yaml:"yun_express_webhook_secret"`
+	GEYunExpressWebhookSecret string `yaml:"ge_yun_express_webhook_secret"`
+	YunExpressEncryptKey      string `yaml:"yun_express_encrypt_key"`
+	YunExpressSkipSignature   bool   `yaml:"yun_express_skip_signature"`
+
+	ProviderName string `yaml:"provider_name"`
+	ServiceClass string `yaml:"service_class"`
+}
+
+// Load 加载配置文件
+func Load(file string) (*Config, error) {
+	content, err := os.ReadFile(file)
+	if err != nil {
+		return nil, err
+	}
+
+	var c Config
+	if err := yaml.Unmarshal(content, &c); err != nil {
+		return nil, err
+	}
+
+	return &c, nil
 }

@@ -6,27 +6,27 @@ import (
 	"github.com/google/uuid"
 )
 
-// TrackingUpsertedEvent 入库成功事件（Demo 阶段 - 10 核心字段�?
-// 触发时机：Upsert tracking_details 成功�?
-// 用途：日志落地、Kafka 投递（下期）、缓存更新（下期�?
+// TrackingUpsertedEvent 入库成功事件（Demo 阶段 - 10 核心字段）
+// 触发时机：Upsert tracking_details 成功
+// 用途：日志落地、Kafka 投递（下期）、缓存更新（下期）
 type TrackingUpsertedEvent struct {
 	// ========== 基础标识字段 ==========
-	ID        string `json:"event_id"`        // 事件唯一 ID（UUID�?
+	ID        string `json:"event_id"`        // 事件唯一 ID（UUID）
 	Type      string `json:"event_type"`      // 固定值："tracking.upserted"
-	Timestamp int64  `json:"event_timestamp"` // 事件触发时间戳（Unix�?
+	Timestamp int64  `json:"event_timestamp"` // 事件触发时间戳（Unix）
 
 	// ========== 运单基础信息 ==========
-	TrackingNumber string `json:"tracking_number"` // 运单号（主键�?
-	Status         int32  `json:"status"`          // 状态码�?-1001�?
-	ServiceClass   string `json:"service_class"`   // 服务类名（YunExpressService�?
+	TrackingNumber string `json:"tracking_number"` // 运单号（主键）
+	Status         int32  `json:"status"`          // 状态码（0-1001）
+	ServiceClass   string `json:"service_class"`   // 服务类名（YunExpressService）
 
-	// ========== 轨迹数据（全�?JSON�?=========
+	// ========== 轨迹数据（完整 JSON）==========
 	Detail string `json:"detail"` // 轨迹原始 JSON（完整数据都在这里）
 
 	// ========== 其他核心字段 ==========
-	CountryCode string `json:"country_code"` // 目的国（US�?
-	SyncedAt    int64  `json:"synced_at"`    // 同步时间�?
-	Source      string `json:"source"`       // 数据来源（webhook/manual�?
+	CountryCode string `json:"country_code"` // 目的国（US）
+	SyncedAt    int64  `json:"synced_at"`    // 同步时间戳
+	Source      string `json:"source"`       // 数据来源（webhook/manual）
 
 	// ========== 下期扩展字段（预留）==========
 	// WayBillNumber      string `json:"way_bill_number"`

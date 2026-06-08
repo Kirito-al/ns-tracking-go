@@ -7,15 +7,12 @@ import (
 	"os/signal"
 	"syscall"
 
-	"ns-tracking-go/app/rpc/internal/config"
-	"ns-tracking-go/app/rpc/internal/event"
-	"ns-tracking-go/app/rpc/internal/event/dispatcher"
-	queueconfig "ns-tracking-go/app/rpc/internal/queue/config"
-	"ns-tracking-go/app/rpc/internal/queue/handler"
-	"ns-tracking-go/app/rpc/internal/svc"
+	"ns-tracking-go/app/internal/config"
+	"ns-tracking-go/app/internal/svc"
+	queueconfig "ns-tracking-go/domain/tracking/queue/config"
+	"ns-tracking-go/app/internal/queue/handler"
 
 	"github.com/hibiken/asynq"
-	"github.com/zeromicro/go-zero/core/conf"
 	"github.com/zeromicro/go-zero/core/logx"
 	"golang.org/x/sync/errgroup"
 )
@@ -26,29 +23,28 @@ func main() {
 	flag.Parse()
 
 	// 1. 加载配置
-	var c config.Config
-	conf.MustLoad(*configFile, &c)
+	c, err := config.Load(*configFile)
+	if err != nil {
+		logx.Errorf("Load config failed: %v", err)
+		os.Exit(1)
+	}
 
-	// 2. 创建 ServiceContext（包含 DAO、Redis、Dispatcher）
-	svcCtx := svc.NewServiceContext(c)
+	// 2. 创建 ServiceContext（包含 DAO、Redis）
+	svcCtx := svc.NewServiceContext(*c)
 
-	// 3. 注册事件监听器
-	eventDispatcher := dispatcher.NewInMemoryDispatcher()
-	event.RegisterListeners(eventDispatcher)
-	svcCtx.EventDispatcher = eventDispatcher
-
-	// 4. 创建 Asynq Server（Worker 进程）
+	// 3. 创建 Asynq Server（Worker 进程）
 	asynqConfig := queueconfig.AsynqConfig{
-		RedisAddr:     c.RedisConf.Host,
-		RedisPassword: c.RedisConf.Pass,
-		RedisDB:       c.AsynqRedisConf.DB,
-		Concurrency:   c.AsynqRedisConf.Concurrency,
+		RedisAddr:     c.AsynqRedisHost,    // ← 修复：使用AsynqRedisHost
+		RedisPassword: c.AsynqRedisPass,    // ← 修复：使用AsynqRedisPass
+		RedisDB:       c.AsynqRedisDB,      // ← 修复：使用AsynqRedisDB
+		Concurrency:   c.AsynqConcurrency,  // ← 修复：使用AsynqConcurrency
 	}
 	asynqServer := queueconfig.NewAsynqServer(asynqConfig)
 
-	// 5. 注册任务处理器（路由）
+	// 4. 注册任务处理器（路由）
 	mux := asynq.NewServeMux()
-	handler.RegisterRetryHandler(mux, svcCtx)
+	handler.RegisterRetryHandler(mux, svcCtx)           // ← 保留：重试任务
+	handler.RegisterTisPushAsyncHandler(mux, svcCtx)    // ← 新增：TIS Push异步处理
 
 	// 下期预留：
 	// handler.RegisterLogHandler(mux, svcCtx)

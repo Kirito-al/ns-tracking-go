@@ -5,18 +5,18 @@ import (
 )
 
 // AsynqConfig Asynq 队列配置
-// 用途：配置 Redis 连接（Db=1，与缓存隔离�?
+// 用途：配置 Redis 连接（Db=1，与缓存隔离）
 type AsynqConfig struct {
 	// Redis 连接配置
-	RedisAddr     string // Redis 地址（如：localhost:6379�?
-	RedisPassword string // Redis 密码（空字符串表示无密码�?
-	RedisDB       int    // Redis DB（默�?1，与缓存隔离�?
+	RedisAddr     string // Redis 地址（如：localhost:6379）
+	RedisPassword string // Redis 密码（空字符串表示无密码）
+	RedisDB       int    // Redis DB（默认=1，与缓存隔离）
 
 	// Worker 配置
-	Concurrency int // 并发数（默认 10�?
+	Concurrency int // 并发数（默认 10）
 }
 
-// NewAsynqClient 创建 Asynq Client（用�?Enqueue 任务�?
+// NewAsynqClient 创建 Asynq Client（用于 Enqueue 任务）
 func NewAsynqClient(cfg AsynqConfig) *asynq.Client {
 	return asynq.NewClient(asynq.RedisClientOpt{
 		Addr:     cfg.RedisAddr,
@@ -25,7 +25,7 @@ func NewAsynqClient(cfg AsynqConfig) *asynq.Client {
 	})
 }
 
-// NewAsynqServer 创建 Asynq Server（用�?Worker 消费�?
+// NewAsynqServer 创建 Asynq Server（用于 Worker 消费）
 func NewAsynqServer(cfg AsynqConfig) *asynq.Server {
 	return asynq.NewServer(
 		asynq.RedisClientOpt{
@@ -34,10 +34,10 @@ func NewAsynqServer(cfg AsynqConfig) *asynq.Server {
 			DB:       cfg.RedisDB,
 		},
 		asynq.Config{
-			Concurrency: cfg.Concurrency, // 并发�?
+			Concurrency: cfg.Concurrency, // 并发数
 			Queues: map[string]int{
-				"default":  6,  // 默认队列优先�?
-				"critical": 10, // 关键任务优先�?
+				"default":  6,  // 默认队列优先级
+				"critical": 10, // 关键任务优先级
 				"low":      1,  // 低优先级任务
 			},
 			// ErrorHandler: 下期实现（投递死信队列或发送告警）

@@ -5,28 +5,47 @@
 // TrackingDetail 轨迹明细项（云途 Webhook 推送的单条轨迹事件）
 // 对标 Ruby tracking_detail.rb 中的 OrderTrackingDetails 项
 type TrackingDetail struct {
-	ProcessDate     string `json:"processDate"`     // 扫描时间（ISO8601）
-	ProcessLocation string `json:"processLocation"` // 扫描地点
-	ProcessContent  string `json:"processContent"`  // 事件描述
-	TrackingStatus  string `json:"trackingStatus"`  // 该节点状态码
+	ProcessDate          string `json:"processDate"`
+	ProcessUTCTime       string `json:"processUTCTime,omitempty"`
+	ProcessLocation      string `json:"processLocation"`
+	ProcessContent       string `json:"processContent"`
+	ProcessCity          string `json:"processCity,omitempty"`
+	ProcessCountry       string `json:"processCountry,omitempty"`
+	ProcessProvince      string `json:"processProvince,omitempty"`
+	TrackingStatus       string `json:"trackingStatus"`
+	TrackNodeCode        string `json:"trackNodeCode,omitempty"`
+	TrackCodeDescription string `json:"trackCodeDescription,omitempty"`
+	PodURL               string `json:"podURL,omitempty"`
 }
 
 // WebhookRequest 云途 Webhook 推送的请求结构（官方格式，camelCase）
 type WebhookRequest struct {
-	TrackingNumber       string          `json:"trackingNumber"`       // 云途运单号（主单号）
-	WayBillNumber        string          `json:"wayBillNumber"`        // 运单号
-	TrackingStatus       string          `json:"trackingStatus"`       // 当前最新状态码
-	PackageState         string          `json:"packageState"`         // 包裹状态
-	OrderTrackingDetails []TrackingDetail `json:"orderTrackingDetails"` // 轨迹明细数组
-	ProviderName         string          `json:"providerName"`         // 物流服务商名称
-	ProviderSite         string          `json:"providerSite"`         // 物流商查询网站
-	ProvicerTelephone    string          `json:"provicerTelephone"`    // 物流商客服电话
-	CountryCode          string          `json:"countryCode"`          // 目的国代码
-	OriginCountryCode    string          `json:"originCountryCode"`    // 始发国代码
-	TrackingNumber2      string          `json:"trackingNumber2"`      // 尾程单号
-	LastMileCarrierName  string          `json:"lastMileCarrierName"`  // 尾程承运商
-	CreatedBy            string          `json:"createdBy"`            // 运单创建时间
-	POD                  string          `json:"pod"`                  // 签收证明
+	TrackingNumber       string          `json:"trackingNumber"`
+	WayBillNumber        string          `json:"wayBillNumber"`
+	TrackingStatus       string          `json:"trackingStatus"`
+	PackageState         string          `json:"packageState"`
+	OrderTrackingDetails []TrackingDetail `json:"orderTrackingDetails"`
+	ProviderName         string          `json:"providerName"`
+	ProviderSite         string          `json:"providerSite"`
+	ProviderTelephone    string          `json:"providerTelephone"`
+	CountryCode          string          `json:"countryCode"`
+	OriginCountryCode    string          `json:"originCountryCode"`
+	LastMileCarrierName  string          `json:"lastMileCarrierName"`
+	CarrierName          string          `json:"carrierName,omitempty"`
+	CreatedBy            string          `json:"createdBy"`
+	CheckOutTime         string          `json:"checkOutTime,omitempty"`
+	PickUpTime           string          `json:"pickUpTime,omitempty"`
+	CustomerCode         string          `json:"customerCode,omitempty"`
+	CustomerOrderNumber  string          `json:"customerOrderNumber,omitempty"`
+	ProductCode          string          `json:"productCode,omitempty"`
+	ChannelCode          string          `json:"channelCode,omitempty"`
+	ActualWeight         float64         `json:"actualWeight,omitempty"`
+	IntervalDay          float64         `json:"intervalDay,omitempty"`
+	IntervalWorkDay      float64         `json:"intervalWorkDay,omitempty"`
+	POD                  string          `json:"pod"`
+	IsSignature          bool            `json:"IsSignature,omitempty"`
+	SignatureUrls        []string        `json:"SignatureUrls,omitempty"`
+	PodUrls              []string        `json:"PodUrls,omitempty"`
 }
 
 // ===================== TIS Push 推送（真实业务格式） =====================
@@ -70,15 +89,16 @@ type TisPushData struct {
 
 // TisTrackEvent TIS 轨迹事件
 type TisTrackEvent struct {
-	TrackNodeDescription string  `json:"track_node_description"`           // 轨迹节点描述（必填）
-	ProcessUTCTime       string  `json:"process_utc_time"`                 // UTC 时间（必填）
-	TrackNodeCode        string  `json:"track_node_code"`                  // 轨迹节点代码（必填）
-	ProcessTime          string  `json:"process_time"`                     // 当地时间（必填）
-	ProcessCity          *string `json:"process_city,optional"`            // 城市（可选）
-	ProcessCountry       *string `json:"process_country,optional"`         // 国家（可选）
-	ProcessLocation      *string `json:"process_location,optional"`        // 地点（可选）
-	ProcessProvince      *string `json:"process_province,optional"`        // 省份（可选）
-	PodURL               *string `json:"pod_url,optional"`                 // POD 链接（可选）
+	TrackNodeDescription string  `json:"track_node_description"`
+	ProcessContent       string  `json:"process_content"`                 // 事件内容（新增）
+	ProcessUTCTime       string  `json:"process_utc_time"`
+	TrackNodeCode        string  `json:"track_node_code"`
+	ProcessTime          string  `json:"process_time"`
+	ProcessCity          *string `json:"process_city,optional"`
+	ProcessCountry       *string `json:"process_country,optional"`
+	ProcessLocation      *string `json:"process_location,optional"`
+	ProcessProvince      *string `json:"process_province,optional"`
+	PodURL               *string `json:"pod_url,optional"`
 }
 
 // WebhookResponse Webhook 响应结构
@@ -193,4 +213,11 @@ type Response struct {
 	Code    int         `json:"code"`    // 响应码
 	Message string      `json:"message"` // 响应消息
 	Data    interface{} `json:"data"`    // 响应数据
+}
+
+// PublicQueryResponse 公开查询响应格式（用户期望格式）
+type PublicQueryResponse struct {
+	Success bool                     `json:"success"`         // 成功标识
+	Result  []map[string]interface{} `json:"result"`          // 结果数组（包含track_Info）
+	T       int64                    `json:"t"`               // 时间戳（毫秒）
 }

@@ -1,29 +1,23 @@
-Name: ns-tracking-app
-Host: 0.0.0.0
-Port: 8082
+name: ns-tracking-app
+host: 0.0.0.0
+port: 8082
 
-# PostgreSQL 数据库连接
-DataSource: postgres://postgres:123456@127.0.0.1:5432/ns_admin_webhook_development?sslmode=disable
+datasource: postgres://postgres:123456@127.0.0.1:5432/ns_admin_webhook_development?sslmode=disable
 
-# Redis 配置
-RedisConf:
-  Host: localhost:6379
-  Pass: ""
-  Db: 0
+redis_host: localhost:6379
+redis_pass: ""
+redis_type: node
 
-# Webhook 签名密钥
-YunExpressWebhookSecret: test-secret
-GEYunExpressWebhookSecret: test-ge-secret
-YunExpressSkipSignature: true  # 开发环境跳过验签
+# Asynq配置（Worker队列）
+asynq_redis_host: localhost:6379     # ← 新增：Asynq Redis地址
+asynq_redis_pass: ""                 # ← 新增：Asynq Redis密码
+asynq_redis_db: 1                    # ← 新增：Asynq Redis DB（与缓存隔离）
+asynq_concurrency: 10                # ← 新增：Worker并发数
 
-# 业务配置
-ProviderName: "云途物流"
-ServiceClass: "YunExpressService"
+yun_express_webhook_secret: test-secret
+ge_yun_express_webhook_secret: test-ge-secret
+yun_express_encrypt_key: your-32-byte-key-here
+yun_express_skip_signature: true
 
-# CORS 配置
-CORS:
-  AllowedOrigins:
-    - "*"
-  AllowedMethods:
-    - GET
-    - POST
+provider_name: YunExpress
+service_class: YunExpressService

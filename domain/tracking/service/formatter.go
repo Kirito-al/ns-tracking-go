@@ -36,11 +36,11 @@ func (f *YunExpressFormatter) Format() *TrackingDetailDTO {
 	// 4. 构建 OrderTrackingDetails（简化版，后续补充完整逻辑）
 	orderTrackingDetails := f.extractOrderTrackingDetails()
 	
-	// 5. 构建 response 包装层 + synced_at（关键：Ruby 缓存命中条件）
+	// 5. 构建 response 包装层 + synced_at
 	return &TrackingDetailDTO{
 		Response: &TrackingResponseDTO{
 			Item: TrackingItemDTO{
-				TrackingNumber:       trackingNumber,      // 使用 WayBillNumber
+				TrackingNumber:       trackingNumber,
 				WayBillNumber:        extractStringField(f.raw, "WayBillNumber"),
 				TrackingStatus:       latestStatus,
 				PackageState:         packageState,
@@ -50,10 +50,25 @@ func (f *YunExpressFormatter) Format() *TrackingDetailDTO {
 				CountryCode:          extractStringField(f.raw, "CountryCode"),
 				OriginCountryCode:    extractStringField(f.raw, "OriginCountryCode"),
 				LastMileCarrierName:  extractStringField(f.raw, "LastMileCarrierName"),
+				CarrierName:          extractStringField(f.raw, "CarrierName"),
+				CheckOutTime:         extractStringField(f.raw, "CheckOutTime"),
+				PickUpTime:           extractStringField(f.raw, "PickUpTime"),
+				CustomerCode:         extractStringField(f.raw, "CustomerCode"),
+				CustomerOrderNumber:  extractStringField(f.raw, "CustomerOrderNumber"),
+				ProductCode:          extractStringField(f.raw, "ProductCode"),
+				ChannelCode:          extractStringField(f.raw, "ChannelCode"),
+				ActualWeight:         extractFloatField(f.raw, "ActualWeight"),
+				IntervalDay:          extractFloatField(f.raw, "IntervalDay"),
+				IntervalWorkDay:      extractFloatField(f.raw, "IntervalWorkDay"),
+				CreatedBy:            extractStringField(f.raw, "CreatedBy"),
+				POD:                  extractStringField(f.raw, "POD"),
+				IsSignature:          extractBoolField(f.raw, "IsSignature"),
+				SignatureUrls:        extractStringSliceField(f.raw, "SignatureUrls"),
+				PodUrls:              extractStringSliceField(f.raw, "PodUrls"),
 				OrderTrackingDetails: orderTrackingDetails,
 			},
 		},
-		SyncedAt: time.Now().UTC().Format(time.RFC3339), // 当前 UTC 时间（ISO8601）
+		SyncedAt: time.Now().UTC().Format(time.RFC3339),
 	}
 }
 
@@ -61,25 +76,52 @@ func (f *YunExpressFormatter) Format() *TrackingDetailDTO {
 func (f *YunExpressFormatter) extractOrderTrackingDetails() []TrackingDetailDTOItem {
 	// 从 raw 中提取 OrderTrackingDetails
 	if details, ok := f.raw["OrderTrackingDetails"]; ok {
+		// 支持两种类型：[]interface{} 和 []map[string]interface{}
+		// 类型1：[]interface{}（通用类型）
 		if detailsArray, ok := details.([]interface{}); ok {
 			items := make([]TrackingDetailDTOItem, len(detailsArray))
 			for i, detail := range detailsArray {
 				if detailMap, ok := detail.(map[string]interface{}); ok {
 					items[i] = TrackingDetailDTOItem{
 						ProcessDate:          extractStringField(detailMap, "ProcessDate"),
+						ProcessUTCTime:       extractStringField(detailMap, "ProcessUTCTime"),
 						ProcessLocation:      extractStringField(detailMap, "ProcessLocation"),
 						ProcessContent:       extractStringField(detailMap, "ProcessContent"),
+						ProcessCity:          extractStringField(detailMap, "ProcessCity"),
+						ProcessCountry:       extractStringField(detailMap, "ProcessCountry"),
+						ProcessProvince:      extractStringField(detailMap, "ProcessProvince"),
 						TrackingStatus:       extractStringField(detailMap, "TrackingStatus"),
 						TrackNodeCode:        extractStringField(detailMap, "TrackNodeCode"),
 						TrackCodeDescription: extractStringField(detailMap, "TrackCodeDescription"),
+						PodURL:               extractStringField(detailMap, "PodURL"),
 						ProcessTimezone:      extractStringField(detailMap, "ProcessTimezone"),
 					}
 				}
 			}
 			return items
 		}
+		// 类型2：[]map[string]interface{}（直接类型）
+		if detailsMapArray, ok := details.([]map[string]interface{}); ok {
+			items := make([]TrackingDetailDTOItem, len(detailsMapArray))
+			for i, detailMap := range detailsMapArray {
+				items[i] = TrackingDetailDTOItem{
+					ProcessDate:          extractStringField(detailMap, "ProcessDate"),
+					ProcessUTCTime:       extractStringField(detailMap, "ProcessUTCTime"),
+					ProcessLocation:      extractStringField(detailMap, "ProcessLocation"),
+					ProcessContent:       extractStringField(detailMap, "ProcessContent"),
+					ProcessCity:          extractStringField(detailMap, "ProcessCity"),
+					ProcessCountry:       extractStringField(detailMap, "ProcessCountry"),
+					ProcessProvince:      extractStringField(detailMap, "ProcessProvince"),
+					TrackingStatus:       extractStringField(detailMap, "TrackingStatus"),
+					TrackNodeCode:        extractStringField(detailMap, "TrackNodeCode"),
+					TrackCodeDescription: extractStringField(detailMap, "TrackCodeDescription"),
+					PodURL:               extractStringField(detailMap, "PodURL"),
+					ProcessTimezone:      extractStringField(detailMap, "ProcessTimezone"),
+				}
+			}
+			return items
+		}
 	}
-	// 修复：返回空数组而不是 nil（避免 JSON 序列化为 null）
 	return []TrackingDetailDTOItem{}
 }
 
@@ -91,6 +133,45 @@ func extractStringField(raw map[string]interface{}, field string) string {
 		}
 	}
 	return ""
+}
+
+// extractFloatField 提取 float64 字段（辅助函数）
+func extractFloatField(raw map[string]interface{}, field string) float64 {
+	if value, ok := raw[field]; ok {
+		if num, ok := value.(float64); ok {
+			return num
+		}
+	}
+	return 0.0
+}
+
+// extractBoolField 提取 bool 字段（辅助函数）
+func extractBoolField(raw map[string]interface{}, field string) bool {
+	if value, ok := raw[field]; ok {
+		if b, ok := value.(bool); ok {
+			return b
+		}
+	}
+	return false
+}
+
+// extractStringSliceField 提取字符串数组字段（辅助函数）
+func extractStringSliceField(raw map[string]interface{}, field string) []string {
+	if value, ok := raw[field]; ok {
+		if arr, ok := value.([]string); ok {
+			return arr
+		}
+		if arr, ok := value.([]interface{}); ok {
+			result := make([]string, len(arr))
+			for i, item := range arr {
+				if str, ok := item.(string); ok {
+					result[i] = str
+				}
+			}
+			return result
+		}
+	}
+	return []string{}
 }
 
 // TrackingDetailDTO 格式化后的轨迹详情DTO（关键：Ruby缓存命中要求）
@@ -110,25 +191,44 @@ type TrackingItemDTO struct {
 	WayBillNumber        string                 `json:"WayBillNumber"`
 	CarrierName          string                 `json:"CarrierName,omitempty"`
 	ProviderName         string                 `json:"ProviderName,omitempty"`
-	ProviderTelephone    string                 `json:"ProviderTelephone,omitempty"` // 注意：字段名拼写修正
+	ProviderTelephone    string                 `json:"ProviderTelephone,omitempty"`
 	ProviderSite         string                 `json:"ProviderSite,omitempty"`
 	CountryCode          string                 `json:"CountryCode,omitempty"`
 	OriginCountryCode    string                 `json:"OriginCountryCode,omitempty"`
 	LastMileCarrierName  string                 `json:"LastMileCarrierName,omitempty"`
 	TrackingStatus       string                 `json:"TrackingStatus"`
 	PackageState         string                 `json:"PackageState"`
-	OrderTrackingDetails []TrackingDetailDTOItem `json:"OrderTrackingDetails,omitempty"`
+	CheckOutTime         string                 `json:"CheckOutTime,omitempty"`
+	PickUpTime           string                 `json:"PickUpTime,omitempty"`
+	CustomerCode         string                 `json:"CustomerCode,omitempty"`
+	CustomerOrderNumber  string                 `json:"CustomerOrderNumber,omitempty"`
+	ProductCode          string                 `json:"ProductCode,omitempty"`
+	ChannelCode          string                 `json:"ChannelCode,omitempty"`
+	ActualWeight         float64                `json:"ActualWeight,omitempty"`
+	IntervalDay          float64                `json:"IntervalDay,omitempty"`
+	IntervalWorkDay      float64                `json:"IntervalWorkDay,omitempty"`
+	CreatedBy            string                 `json:"CreatedBy,omitempty"`
+	POD                  string                 `json:"POD,omitempty"`
+	IsSignature          bool                   `json:"IsSignature"`
+	SignatureUrls        []string               `json:"SignatureUrls"`
+	PodUrls              []string               `json:"PodUrls"`
+	OrderTrackingDetails []TrackingDetailDTOItem `json:"OrderTrackingDetails"`
 }
 
 // TrackingDetailDTOItem 轨迹明细项
 type TrackingDetailDTOItem struct {
-	ProcessDate         string `json:"ProcessDate"`
-	ProcessLocation     string `json:"ProcessLocation"`
-	ProcessContent      string `json:"ProcessContent"`
-	TrackingStatus      string `json:"TrackingStatus"`
-	TrackNodeCode       string `json:"TrackNodeCode,omitempty"`       // 节点代码（对标 Ruby）
-	TrackCodeDescription string `json:"TrackCodeDescription,omitempty"` // 节点描述（对标 Ruby）
-	ProcessTimezone     string `json:"ProcessTimezone,omitempty"`     // 时区信息（对标 Ruby）
+	ProcessDate          string `json:"ProcessDate"`
+	ProcessUTCTime       string `json:"ProcessUTCTime,omitempty"`
+	ProcessLocation      string `json:"ProcessLocation"`
+	ProcessContent       string `json:"ProcessContent"`
+	ProcessCity          string `json:"ProcessCity,omitempty"`
+	ProcessCountry       string `json:"ProcessCountry,omitempty"`
+	ProcessProvince      string `json:"ProcessProvince,omitempty"`
+	TrackingStatus       string `json:"TrackingStatus"`
+	TrackNodeCode        string `json:"TrackNodeCode,omitempty"`
+	TrackCodeDescription string `json:"TrackCodeDescription,omitempty"`
+	PodURL               string `json:"PodURL,omitempty"`
+	ProcessTimezone      string `json:"ProcessTimezone,omitempty"`
 }
 
 // ToJSON 转换为JSON字符串（用于存入JSONB字段）

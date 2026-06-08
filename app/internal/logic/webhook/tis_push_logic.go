@@ -122,17 +122,44 @@ func (l *TisPushLogic) convertTisToWebhook(tisData *types.TisPushData) *types.We
 	// 1. 转换 track_events → orderTrackingDetails
 	details := make([]types.TrackingDetail, len(tisData.TrackEvents))
 	for i, evt := range tisData.TrackEvents {
-		// 处理可选指针字段（如果为nil使用空字符串）
+		// 处理可选指针字段（nil-safe）
 		processLocation := ""
 		if evt.ProcessLocation != nil {
 			processLocation = *evt.ProcessLocation
 		}
 
+		processCity := ""
+		if evt.ProcessCity != nil {
+			processCity = *evt.ProcessCity
+		}
+
+		processCountry := ""
+		if evt.ProcessCountry != nil {
+			processCountry = *evt.ProcessCountry
+		}
+
+		processProvince := ""
+		if evt.ProcessProvince != nil {
+			processProvince = *evt.ProcessProvince
+		}
+
+		podURL := ""
+		if evt.PodURL != nil {
+			podURL = *evt.PodURL
+		}
+
 		details[i] = types.TrackingDetail{
-			ProcessDate:     evt.ProcessTime,                   // 用当地时间
-			ProcessLocation: processLocation,                   // 地点（处理指针）
-			ProcessContent:  evt.TrackNodeDescription,          // 描述作为内容
-			TrackingStatus:  service.MapNodeCode(evt.TrackNodeCode), // 使用完整映射表
+			ProcessDate:          evt.ProcessTime,                   // 用当地时间
+			ProcessUTCTime:       evt.ProcessUTCTime,                // UTC时间（新增）
+			ProcessLocation:      processLocation,                   // 地点
+			ProcessContent:       evt.ProcessContent,                // 事件内容
+			ProcessCity:          processCity,                       // 城市（新增）
+			ProcessCountry:       processCountry,                    // 国家（新增）
+			ProcessProvince:      processProvince,                   // 省份（新增）
+			TrackingStatus:       service.MapNodeCode(evt.TrackNodeCode), // 状态码
+			TrackNodeCode:        evt.TrackNodeCode,                 // 节点代码（新增）
+			TrackCodeDescription: evt.TrackNodeDescription,          // 节点描述（新增）
+			PodURL:               podURL,                            // POD URL（新增）
 		}
 	}
 
@@ -176,22 +203,84 @@ func (l *TisPushLogic) convertTisToWebhook(tisData *types.TisPushData) *types.We
 		checkInTime = *tisData.CheckInTime
 	}
 
-	// 5. 构建 WebhookRequest（OMS 格式）
+	productName := ""
+	if tisData.ProductName != nil {
+		productName = *tisData.ProductName
+	}
+
+	customerOrderNumber := ""
+	if tisData.CustomerOrderNumber != nil {
+		customerOrderNumber = *tisData.CustomerOrderNumber
+	}
+
+	productCode := ""
+	if tisData.ProductCode != nil {
+		productCode = *tisData.ProductCode
+	}
+
+	channelCode := ""
+	if tisData.ChannelCode != nil {
+		channelCode = *tisData.ChannelCode
+	}
+
+	customerCode := ""
+	if tisData.CustomerCode != nil {
+		customerCode = *tisData.CustomerCode
+	}
+
+	checkOutTime := ""
+	if tisData.CheckOutTime != nil {
+		checkOutTime = *tisData.CheckOutTime
+	}
+
+	pickUpTime := ""
+	if tisData.PickUpTime != nil {
+		pickUpTime = *tisData.PickUpTime
+	}
+
+	actualWeight := 0.0
+	if tisData.ActualWeight != nil {
+		actualWeight = *tisData.ActualWeight
+	}
+
+	intervalDay := 0.0
+	if tisData.IntervalDay != nil {
+		intervalDay = *tisData.IntervalDay
+	}
+
+	intervalWorkDay := 0.0
+	if tisData.IntervalWorkDay != nil {
+		intervalWorkDay = *tisData.IntervalWorkDay
+	}
+
+	// 5. 构建 WebhookRequest（完整字段）
 	return &types.WebhookRequest{
-		TrackingNumber:       tisData.TrackingNumber,                     // 尾程单号
-		WayBillNumber:        tisData.WaybillNumber,                      // 主单号
-		TrackingStatus:       latestStatus,                               // 最新状态码
-		PackageState:         packageState,                               // 包裹状态（数字）
-		OrderTrackingDetails: details,                                    // 轨迹明细数组
-		ProviderName:         l.svcCtx.Config.ProviderName,               // 服务商名称（从配置读取）
-		ProviderSite:         lastMileSite,                               // 尾程网站（处理指针）
-		ProvicerTelephone:    phoneNumber,                                // 尾程电话（处理指针）
-		CountryCode:          destinationCode,                            // 目的国（处理指针）
-		OriginCountryCode:    originCode,                                 // 始发国（处理指针）
-		TrackingNumber2:      tisData.TrackingNumber,                     // 尾程单号（与 trackingNumber 相同）
-		LastMileCarrierName:  lastMileName,                               // 尾程承运商（处理指针）
-		CreatedBy:            checkInTime,                                // 入库时间（处理指针）
-		POD:                  l.extractPodUrl(tisData.TrackEvents),       // POD URL
+		TrackingNumber:       tisData.TrackingNumber,
+		WayBillNumber:        tisData.WaybillNumber,
+		TrackingStatus:       latestStatus,
+		PackageState:         packageState,
+		OrderTrackingDetails: details,
+		ProviderName:         productName,                                // 产品名称（修复：用 product_name）
+		ProviderSite:         lastMileSite,
+		ProviderTelephone:    phoneNumber,
+		CountryCode:          destinationCode,
+		OriginCountryCode:    originCode,
+		LastMileCarrierName:  lastMileName,
+		CarrierName:          lastMileName,                               // 承运商名称（同 LastMileCarrierName）
+		CreatedBy:            checkInTime,
+		CheckOutTime:         checkOutTime,
+		PickUpTime:           pickUpTime,
+		CustomerCode:         customerCode,
+		CustomerOrderNumber:  customerOrderNumber,
+		ProductCode:          productCode,
+		ChannelCode:          channelCode,
+		ActualWeight:         actualWeight,
+		IntervalDay:          intervalDay,
+		IntervalWorkDay:      intervalWorkDay,
+		IsSignature:          tisData.IsSignature,
+		SignatureUrls:        tisData.SignatureUrls,
+		PodUrls:              tisData.PodUrls,
+		POD:                  l.extractPodUrl(tisData.TrackEvents),
 	}
 }
 
@@ -260,14 +349,21 @@ func (l *TisPushLogic) extractTimestamps(events []types.TisTrackEvent) (received
 
 // convertWebhookRequestToMap 转换 WebhookRequest 为 map（供 Formatter 使用）
 func (l *TisPushLogic) convertWebhookRequestToMap(req *types.WebhookRequest) map[string]interface{} {
-	// 转换 OrderTrackingDetails
+	// 转换 OrderTrackingDetails（完整字段）
 	events := make([]map[string]interface{}, len(req.OrderTrackingDetails))
 	for i, detail := range req.OrderTrackingDetails {
 		events[i] = map[string]interface{}{
-			"ProcessDate":     detail.ProcessDate,
-			"ProcessLocation": detail.ProcessLocation,
-			"ProcessContent":  detail.ProcessContent,
-			"TrackingStatus":  detail.TrackingStatus,
+			"ProcessDate":          detail.ProcessDate,
+			"ProcessUTCTime":       detail.ProcessUTCTime,
+			"ProcessLocation":      detail.ProcessLocation,
+			"ProcessContent":       detail.ProcessContent,
+			"ProcessCity":          detail.ProcessCity,
+			"ProcessCountry":       detail.ProcessCountry,
+			"ProcessProvince":      detail.ProcessProvince,
+			"TrackingStatus":       detail.TrackingStatus,
+			"TrackNodeCode":        detail.TrackNodeCode,
+			"TrackCodeDescription": detail.TrackCodeDescription,
+			"PodURL":               detail.PodURL,
 		}
 	}
 
@@ -278,11 +374,24 @@ func (l *TisPushLogic) convertWebhookRequestToMap(req *types.WebhookRequest) map
 		"PackageState":         req.PackageState,
 		"ProviderName":         req.ProviderName,
 		"ProviderSite":         req.ProviderSite,
-		"ProvicerTelephone":    req.ProvicerTelephone,
+		"ProviderTelephone":    req.ProviderTelephone,
 		"CountryCode":          req.CountryCode,
 		"OriginCountryCode":    req.OriginCountryCode,
 		"LastMileCarrierName":  req.LastMileCarrierName,
+		"CarrierName":          req.CarrierName,
 		"CreatedBy":            req.CreatedBy,
+		"CheckOutTime":         req.CheckOutTime,
+		"PickUpTime":           req.PickUpTime,
+		"CustomerCode":         req.CustomerCode,
+		"CustomerOrderNumber":  req.CustomerOrderNumber,
+		"ProductCode":          req.ProductCode,
+		"ChannelCode":          req.ChannelCode,
+		"ActualWeight":         req.ActualWeight,
+		"IntervalDay":          req.IntervalDay,
+		"IntervalWorkDay":      req.IntervalWorkDay,
+		"IsSignature":          req.IsSignature,
+		"SignatureUrls":        req.SignatureUrls,
+		"PodUrls":              req.PodUrls,
 		"POD":                  req.POD,
 		"OrderTrackingDetails": events,
 	}

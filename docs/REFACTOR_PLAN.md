@@ -3,7 +3,14 @@
 > **项目目标**：
 > 1. 完成云途物流 Webhook 改造（Pull → Push），实现 Go标准化接收、Ruby读缓存、最小风险迁移
 > 2. 完成架构重构（DDD领域驱动设计 + Go Workspaces多模块管理），提升可维护性和扩展性
-> **当前状态**：代码审查问题全部修复、Go Workspaces架构改造完成、核心逻辑已实现
+> 
+> **当前状态（2026-06-05更新）**：
+> - ✅ DDD架构重构完成（Phase 0-1）
+> - ✅ 核心逻辑迁移完成（formatter + status_mapper + tracking_logs）
+> - ✅ 编译验证通过，代码审查问题全部修复
+> - ⚠️ **关键缺失**: AES解密、真实payload验证、完整节点映射、Worker服务修复
+> - 📋 **下一步**: Phase 2 (P0功能补充) - 见 `docs/NEXT_STEPS.md`
+> 
 > **实施原则**：最小改动、最小风险、分阶段灰度、DDD标准分层
 
 ---
@@ -1091,7 +1098,88 @@ Go: service/tracking/api/internal/middleware/metrics.go (新增埋点)
 
 ---
 
-**文档版本**：v1.0
-**创建时间**：2026-06-04
+## 九、当前进度更新（2026-06-05）
+
+### 9.1 Phase 0-1 已完成 ✅
+
+**架构重构成果**：
+- ✅ DDD 4层架构搭建完成（domain/infrastructure/app/pkg）
+- ✅ Go Workspaces 配置完成（go.work管理4模块）
+- ✅ YunExpressFormatter 核心逻辑迁移完成
+- ✅ StatusMapper 12个状态码映射表完整
+- ✅ TrackingLogService 时间戳同步逻辑完成
+- ✅ Webhook Handler 基础框架（签名验证已实现）
+- ✅ Upsert 入库逻辑（并发控制+auto_delivered_at判断）
+- ✅ 所有编译验证通过（无错误）
+- ✅ 代码审查P0/P1问题全部修复（7个问题）
+
+**验收状态**：
+- ✅ Phase 0验收通过（架构重构准备完成）
+- ✅ Phase 1验收通过（基础设施层独立完成）
+- ✅ Phase 2验收通过（领域层独立完成）
+- ✅ Phase 3验收通过（应用层重构完成）
+- ✅ Phase 5验收通过（go.work配置完成）
+
+---
+
+### 9.2 关键缺失部分（按优先级）
+
+#### 🔴 P0 一票否决项
+
+| 缺失功能 | 影响范围 | 实施位置 | 参考实现 |
+|---------|---------|---------|----------|
+| **AES-CBC Payload解密** | Webhook加密推送无法处理 | `infrastructure/crypto/` | tms-talk `_decrypt_if_needed` |
+| **真实tisPushData样本验证** | 标准化层设计基于推测 | 沙箱环境测试 | 云途文档 |
+| **完整节点代码映射表** | 状态码转换不准确 | `domain/tracking/service/node_code_mapper.go` | Ruby YunExpressTrackFormatter |
+| **Worker服务路径修复** | Asynq无法启动 | `app/cmd/worker/main.go` | 引用路径错误 |
+
+#### 🟠 P1 核心功能缺失
+
+| 缺失功能 | 影响范围 | 实施位置 |
+|---------|---------|---------|
+| GORM DB连接池配置 | 生产环境性能 | `infrastructure/database/db.go` |
+| Redis缓存层完整实现 | 幂等去重未完整 | `infrastructure/cache/` |
+| 公开API查询逻辑 | admin/public接口无法使用 | `app/internal/logic/public/` |
+| 服务真实启动验证 | 无法确认服务能否运行 | 配置+依赖注入 |
+| Webhook payload兼容性 | 三种信封格式未处理 | `app/internal/logic/webhook/` |
+
+#### 🟡 P2 质量保障缺失
+
+| 缺失功能 | 影响范围 |
+|---------|---------|
+| 统一单元测试 | 覆盖率<80% |
+| 监控埋点 | 生产问题无法发现 |
+| 降级策略验证 | Pull兜底未实现 |
+| 灰度发布配置 | 流量切换无控制 |
+
+---
+
+### 9.3 下一步实施计划
+
+**详细实施计划已更新到**: `docs/NEXT_STEPS.md`
+
+**Phase 2 (P0功能补充) - 第2-3周**：
+1. AES-CBC Payload解密实现
+2. 真实tisPushData样本验证（沙箱环境）
+3. 完整节点代码映射表（39个节点）
+4. Worker服务路径修复
+
+**Phase 3 (P1功能补充) - 第3-5周**：
+1. GORM DB连接池配置
+2. Redis缓存层完整实现
+3. 公开API查询逻辑实现
+4. 服务真实启动验证
+5. Webhook payload兼容性处理
+
+**Phase 4 (P2功能补充) - 第5-7周**：
+1. 统一单元测试（目标覆盖率>80%）
+2. 监控埋点实现（Prometheus指标）
+3. Ruby降级策略验证
+4. 灰度发布配置（10%→30%→50%→100%）
+
+---
+
+**文档版本**：v2.0
+**最后更新**：2026-06-05
 **负责人**：Go团队 + Ruby团队
-**状态**：待实施（Phase 1启动）
+**状态**：Phase 2启动（P0功能补充）
